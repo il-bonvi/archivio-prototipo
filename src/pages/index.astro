@@ -11,7 +11,7 @@ const anni = [...new Set(gare.map(g => new Date(g.data).getFullYear()))].sort((a
 const totKm = gare.reduce((s, g) => s + (Number(g.distanza_km) || 0), 0);
 ---
 
-<Base title="Race Database — Percorsi Ciclistici">
+<Base title="Race Database — by Bonvi">
 <div class="layout">
 
   <aside class="sidebar">
@@ -21,7 +21,7 @@ const totKm = gare.reduce((s, g) => s + (Number(g.distanza_km) || 0), 0);
         <div class="brand-mark">RDB</div>
         <div>
           <div class="brand-name">Race Database</div>
-          <div class="brand-sub">Percorsi Ciclistici</div>
+          <div class="brand-sub">Easy</div>
         </div>
       </div>
 
