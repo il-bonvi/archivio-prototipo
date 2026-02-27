@@ -104,7 +104,8 @@ def main():
     """Genera tutti i report HTML dai JSON"""
     
     json_dir = ARCHIVIO_DIR / 'gare-sorgenti'
-    html_dir = ARCHIVIO_DIR / 'public' / 'gare'
+    # Scrivi direttamente in dist/ per evitare problemi di copia
+    html_dir = ARCHIVIO_DIR / 'dist' / 'gare'
     template_path = Path(__file__).parent / 'index.html'
     
     if not json_dir.exists():
