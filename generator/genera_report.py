@@ -3,9 +3,8 @@
 genera_report.py — Genera report HTML da GPX e lo aggiunge all'archivio Astro.
 
 Uso:
-    python genera_report.py                        # dialog grafico completo
-    python genera_report.py percorso.gpx           # salta selezione file
-    python genera_report.py percorso.gpx --no-build  # salta npm run build
+    python generator/genera_report.py                  # dialog grafico completo
+    python generator/genera_report.py percorso.gpx     # salta selezione file
 
 Lo script:
   1. Chiede di selezionare il file GPX
@@ -13,7 +12,11 @@ Lo script:
   3. Mostra form con tutti i metadati precompilati
   4. Genera HTML → public/gare/<slug>.html
   5. Crea JSON → gare-sorgenti/<slug>.json
-  6. Lancia npm run build
+
+  Per pubblicare sul sito:
+    git add .
+    git commit -m "Aggiungi gara: <titolo>"
+    git push
 """
 
 import sys
@@ -28,7 +31,6 @@ from pathlib import Path
 from datetime import date
 
 # ── CONFIGURAZIONE ───────────────────────────────────────────────────────────
-# Cartella dell'archivio Astro. Torna indietro di una cartella da /generator
 ARCHIVIO_DIR = Path(__file__).parent.parent
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -70,12 +72,10 @@ def parse_gpx(gpx_path: Path) -> dict:
     try:
         tree = ET.parse(gpx_path)
         root = tree.getroot()
-        # Namespace GPX 1.1 e 1.0
         ns = ''
         if root.tag.startswith('{'):
             ns = root.tag.split('}')[0] + '}'
 
-        # Raccogli tutti i punti (trkpt o wpt)
         points = root.findall(f'.//{ns}trkpt')
         if not points:
             points = root.findall(f'.//{ns}rtept')
@@ -97,7 +97,6 @@ def parse_gpx(gpx_path: Path) -> dict:
         if not coords:
             return {'distanza_km': None, 'dislivello_m': None}
 
-        # Distanza con formula Haversine
         def haversine(lat1, lon1, lat2, lon2):
             R = 6371000
             φ1, φ2 = math.radians(lat1), math.radians(lat2)
@@ -111,17 +110,24 @@ def parse_gpx(gpx_path: Path) -> dict:
             for i in range(len(coords)-1)
         )
 
-        # Dislivello positivo (soglia 2m per filtrare rumore GPS)
+        # Smoothing quote con media mobile (finestra 5) per ridurre rumore GPS
+        eles_raw = [c[2] for c in coords if c[2] is not None]
+        w = 5
+        eles = []
+        for i in range(len(eles_raw)):
+            start = max(0, i - w // 2)
+            end   = min(len(eles_raw), i + w // 2 + 1)
+            eles.append(sum(eles_raw[start:end]) / (end - start))
+
         d_plus = 0.0
-        eles = [c[2] for c in coords if c[2] is not None]
         for i in range(1, len(eles)):
             diff = eles[i] - eles[i-1]
-            if diff > 2.0:
+            if diff > 0:
                 d_plus += diff
 
         return {
             'distanza_km': round(dist_m / 1000, 2),
-            'dislivello_m': round(d_plus),
+            'dislivello_m': round(d_plus) if d_plus > 0 else None,
         }
 
     except Exception as e:
@@ -142,11 +148,14 @@ def slugify(s: str) -> str:
 
 # ── DIALOG METADATI ───────────────────────────────────────────────────────────
 
-def ask_metadata(default_title: str, gpx_data: dict) -> dict | None:
+def ask_metadata(default_title: str, gpx_path_initial: Path, gpx_data: dict) -> tuple | None:
+    """Ritorna (meta_dict, gpx_path) oppure None se annullato."""
     import tkinter as tk
-    from tkinter import ttk, messagebox
+    from tkinter import ttk, messagebox, filedialog
 
     result = {}
+    # gpx_path è mutabile dentro la closure tramite lista
+    current_gpx = [gpx_path_initial]
 
     root = tk.Tk()
     root.title("Aggiungi al database gare")
@@ -160,8 +169,56 @@ def ask_metadata(default_title: str, gpx_data: dict) -> dict | None:
     root.configure(bg=BG)
 
     tk.Frame(root, bg=ACCENT, height=4).pack(fill="x")
+
+    # Header con nome GPX e bottone cambio
+    header_frame = tk.Frame(root, bg=BG, padx=24)
+    header_frame.pack(fill="x", pady=(8, 0))
+
+    gpx_label = tk.Label(header_frame,
+                         text=f"GPX: {gpx_path_initial.name}",
+                         font=("Helvetica", 9), bg=BG, fg="#7a746b", anchor="w")
+    gpx_label.pack(side="left")
+
+    def cambia_gpx():
+        new_path = filedialog.askopenfilename(
+            parent=root,
+            title="Seleziona nuovo file GPX",
+            filetypes=[("GPX files", "*.gpx"), ("All files", "*.*")]
+        )
+        if not new_path:
+            return
+        new_path = Path(new_path)
+        current_gpx[0] = new_path
+        gpx_label.config(text=f"GPX: {new_path.name}")
+
+        # Rileggi distanza e dislivello
+        new_data = parse_gpx(new_path)
+        nonlocal raw_km, raw_d
+        raw_km = new_data.get("distanza_km")
+        raw_d  = new_data.get("dislivello_m")
+
+        # Aggiorna campi km e D+
+        g = 1
+        try: g = int(giri_var.get())
+        except: pass
+        e_km.delete(0, tk.END)
+        if raw_km: e_km.insert(0, str(round(raw_km * g, 2)))
+        e_dp.delete(0, tk.END)
+        if raw_d: e_dp.insert(0, str(round(raw_d * g)))
+
+        # Aggiorna titolo/slug solo se non modificati manualmente
+        if not slug_manual.get():
+            e_titolo.delete(0, tk.END)
+            e_titolo.insert(0, new_path.stem)
+            update_slug()
+
+    tk.Button(header_frame, text="↺ Cambia GPX", font=("Helvetica", 9),
+              bg="#ede9e2", fg="#7a746b", relief="flat", bd=0,
+              padx=8, pady=3, cursor="hand2",
+              command=cambia_gpx).pack(side="right")
+
     tk.Label(root, text="Aggiungi percorso al database",
-             font=("Helvetica", 13, "bold"), bg=BG, fg=FG, pady=12).pack()
+             font=("Helvetica", 13, "bold"), bg=BG, fg=FG, pady=8).pack()
 
     frame = tk.Frame(root, bg=BG, padx=24, pady=4)
     frame.pack(fill="both")
@@ -172,7 +229,7 @@ def ask_metadata(default_title: str, gpx_data: dict) -> dict | None:
                  anchor="w").grid(row=row_n*2, column=0, columnspan=2,
                                   sticky="w", pady=(10,1))
 
-    def ent(row_n, val=''):
+    def ent(row_n, val=""):
         e = tk.Entry(frame, font=FONT_ENTRY, bg="white", fg=FG, relief="solid", bd=1)
         e.grid(row=row_n*2+1, column=0, columnspan=2, sticky="ew")
         if val: e.insert(0, str(val))
@@ -184,12 +241,12 @@ def ask_metadata(default_title: str, gpx_data: dict) -> dict | None:
         c.current(0)
         return c
 
-    lbl("Nome gara *", 0);      e_titolo    = ent(0, default_title)
-    lbl("Slug URL *", 1);       e_slug      = ent(1)
+    lbl("Nome gara *", 0);       e_titolo   = ent(0, default_title)
+    lbl("Slug URL *", 1);        e_slug     = ent(1)
     lbl("Data (AAAA-MM-GG) *",2);e_data     = ent(2, date.today().isoformat())
-    lbl("Genere *", 3);         cb_genere   = cmb(3, GENERI)
-    lbl("Categoria *", 4);      cb_cat      = cmb(4, CATEGORIE)
-    lbl("Disciplina *", 5);     cb_disc     = cmb(5, DISCIPLINE)
+    lbl("Genere *", 3);          cb_genere  = cmb(3, GENERI)
+    lbl("Categoria *", 4);       cb_cat     = cmb(4, CATEGORIE)
+    lbl("Disciplina *", 5);      cb_disc    = cmb(5, DISCIPLINE)
 
     # Auto-slug
     slug_manual = tk.BooleanVar(value=False)
@@ -213,15 +270,14 @@ def ask_metadata(default_title: str, gpx_data: dict) -> dict | None:
                  anchor="w").grid(row=row_n*2, column=col, columnspan=colspan,
                                   sticky="w", padx=(0,8), pady=(10,1))
 
-    def ent2(row_n, col, val='', colspan=1):
+    def ent2(row_n, col, val="", colspan=1):
         e = tk.Entry(frame2, font=FONT_ENTRY, bg="white", fg=FG, relief="solid", bd=1)
         e.grid(row=row_n*2+1, column=col, columnspan=colspan, sticky="ew", padx=(0,8))
-        if val != '': e.insert(0, str(val))
+        if val != "": e.insert(0, str(val))
         return e
 
-    # GPX raw values
-    raw_km = gpx_data.get('distanza_km')
-    raw_d  = gpx_data.get('dislivello_m')
+    raw_km = gpx_data.get("distanza_km")
+    raw_d  = gpx_data.get("dislivello_m")
 
     lbl2("Giri del circuito", 0, 0)
     giri_var = tk.IntVar(value=1)
@@ -230,37 +286,34 @@ def ask_metadata(default_title: str, gpx_data: dict) -> dict | None:
     spin_giri.grid(row=1, column=0, sticky="w", padx=(0,8))
 
     lbl2("Distanza (km)", 0, 1)
-    e_km = ent2(0, 1, val=raw_km if raw_km else '')
+    e_km = ent2(0, 1, val=raw_km if raw_km else "")
 
     lbl2("Dislivello (m D+)", 0, 2)
-    e_dp = ent2(0, 2, val=raw_d if raw_d else '')
+    e_dp = ent2(0, 2, val=raw_d if raw_d else "")
 
-    # Aggiorna km e D+ al cambio giri
     def update_stats(*_):
         try:
             g = int(giri_var.get())
         except:
             return
-        if raw_km is not None:
+        if raw_km:
             e_km.delete(0, tk.END)
             e_km.insert(0, str(round(raw_km * g, 2)))
-        if raw_d is not None:
+        if raw_d:
             e_dp.delete(0, tk.END)
             e_dp.insert(0, str(round(raw_d * g)))
 
-    giri_var.trace_add('write', update_stats)
+    giri_var.trace_add("write", update_stats)
 
     lbl2("Luogo / Regione", 1, 0, colspan=2)
     e_luogo = ent2(1, 0, colspan=2)
 
-    # Note
     tk.Label(frame2, text="Note (opzionali)", font=FONT_LABEL, bg=BG, fg="#7a746b",
              anchor="w").grid(row=4, column=0, columnspan=3, sticky="w", pady=(10,1))
     e_note = tk.Text(frame2, font=FONT_ENTRY, bg="white", fg=FG,
                      relief="solid", bd=1, height=3)
     e_note.grid(row=5, column=0, columnspan=3, sticky="ew", pady=(0,4))
 
-    # Bottoni
     btn_frame = tk.Frame(root, bg=BG, padx=24, pady=16)
     btn_frame.pack(fill="x")
     cancelled = tk.BooleanVar(value=False)
@@ -270,7 +323,7 @@ def ask_metadata(default_title: str, gpx_data: dict) -> dict | None:
         if not e_titolo.get().strip(): errors.append("Nome gara obbligatorio")
         if not e_slug.get().strip():   errors.append("Slug obbligatorio")
         if not e_data.get().strip():   errors.append("Data obbligatoria")
-        if not re.match(r'^\d{4}-\d{2}-\d{2}$', e_data.get().strip()):
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", e_data.get().strip()):
             errors.append("Data nel formato AAAA-MM-GG")
         if errors:
             messagebox.showerror("Errore", "\n".join(errors), parent=root)
@@ -314,8 +367,7 @@ def ask_metadata(default_title: str, gpx_data: dict) -> dict | None:
 
     if cancelled.get() or not result:
         return None
-    return result
-
+    return result, current_gpx[0]
 
 # ── TEMPLATE ─────────────────────────────────────────────────────────────────
 
@@ -374,10 +426,9 @@ def generate_html(gpx_path: Path, template_path: Path, title: str) -> str:
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('gpx', nargs='?', default=None)
-    parser.add_argument('--template', default=None)
-    parser.add_argument('--no-build', action='store_true', dest='no_build')
+    parser = argparse.ArgumentParser(description='Genera report HTML da GPX')
+    parser.add_argument('gpx', nargs='?', default=None, help='Path al file GPX')
+    parser.add_argument('--template', default=None, help='Path al template index.html')
     args = parser.parse_args()
 
     # 1. Seleziona GPX
@@ -399,11 +450,12 @@ def main():
         print(f"  Dislivello rilevato: +{gpx_data['dislivello_m']} m")
 
     # 3. Dialog metadati
-    meta = ask_metadata(gpx_path.stem, gpx_data)
-    if meta is None:
+    res = ask_metadata(gpx_path.stem, gpx_path, gpx_data)
+    if res is None:
         print("Annullato.")
         sys.exit(0)
 
+    meta, gpx_path = res   # gpx_path può essere cambiato dall'utente
     slug  = meta["slug"]
     title = meta["titolo"]
 
@@ -416,7 +468,7 @@ def main():
     html_path = out_html_dir / f"{slug}.html"
     json_path = out_json_dir / f"{slug}.json"
 
-    # Avvisa se esiste già
+    # 5. Avvisa se esiste già
     if html_path.exists() or json_path.exists():
         import tkinter as tk
         from tkinter import messagebox
@@ -428,44 +480,38 @@ def main():
             print("Operazione annullata.")
             sys.exit(0)
 
-    # 5. Genera e salva HTML
+    # 6. Genera e salva HTML
     template_path = find_template(args.template)
     html_content  = generate_html(gpx_path, template_path, title)
     html_path.write_text(html_content, encoding='utf-8')
     print(f"[OK] HTML  -> {html_path}")
 
-    # 6. Salva JSON (rimuovi None)
+    # 7. Salva JSON (rimuovi None)
     meta_clean = {k: v for k, v in meta.items() if v is not None}
     json_path.write_text(json.dumps(meta_clean, ensure_ascii=False, indent=2), encoding='utf-8')
     print(f"[OK] JSON  -> {json_path}")
 
-    # 7. Build
-    if not args.no_build:
-        print("\n[*] npm run build...")
-        result = subprocess.run(
-            ["npm", "run", "build"],
-            cwd=ARCHIVIO_DIR,
-            shell=(sys.platform == "win32")
-        )
-        if result.returncode == 0:
-            print("\n[OK] Build completata!")
-            print("  -> Trascina la cartella  dist/  su  https://app.netlify.com/drop")
-        else:
-            print("\n[FAIL] Build fallita.")
-            sys.exit(1)
-    else:
-        print("\nBuild saltata. Lancia: npm run build")
+    print(f"\n[OK] Gara '{title}' aggiunta al database.")
+    print("  Per pubblicare sul sito:")
+    print(f"    git add .")
+    print(f"    git commit -m \"Aggiungi gara: {title}\"")
+    print(f"    git push")
 
     # 8. Popup finale
     try:
         import tkinter as tk
         from tkinter import messagebox
         root = tk.Tk(); root.withdraw(); root.attributes('-topmost', True)
-        msg = f'"{title}" aggiunto al database!\n\n'
-        if not args.no_build:
-            msg += "Build completata.\nOra trascina dist/ su:\nhttps://app.netlify.com/drop"
-        else:
-            msg += f"Slug: {slug}\nLancia npm run build quando sei pronto."
+        msg = (
+            f'"{title}" aggiunta al database!\n\n'
+            f'File creati:\n'
+            f'  public/gare/{slug}.html\n'
+            f'  gare-sorgenti/{slug}.json\n\n'
+            f'Per pubblicare sul sito:\n'
+            f'  git add .\n'
+            f'  git commit -m "Aggiungi gara: {title}"\n'
+            f'  git push'
+        )
         messagebox.showinfo("Database aggiornato!", msg)
         root.destroy()
     except Exception:
