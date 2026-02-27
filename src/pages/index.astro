@@ -136,6 +136,13 @@ const totKm = gare.reduce((s, g) => s + (Number(g.distanza_km) || 0), 0);
     </div>
 
   </main>
+
+  <footer>
+    <a href="https://linktr.ee/bonvicin.coaching" target="_blank">
+      &copy; 2026 Andrea Bonvicin — RaceArchive — Licenza MIT
+    </a>
+  </footer>
+
 </div>
 </Base>
 
@@ -346,6 +353,30 @@ const totKm = gare.reduce((s, g) => s + (Number(g.distanza_km) || 0), 0);
   .empty-title { font-family: var(--font-display); font-size: 1.25rem; color: var(--text2); margin-bottom: 0.5rem; }
   .empty-sub { font-size: 0.82rem; line-height: 1.6; }
   .empty-sub a { color: var(--accent); }
+
+  footer {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 1.5rem 1.25rem;
+    background: var(--bg2);
+    color: var(--text2);
+    margin-top: 1rem;
+    font-size: 0.8rem;
+    width: 100%;
+    box-sizing: border-box;
+    border-top: 1px solid var(--border);
+  }
+
+  footer a {
+    color: var(--text2);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s;
+  }
+
+  footer a:hover {
+    color: var(--accent);
+  }
 
   @media (max-width: 768px) {
     .layout { grid-template-columns: 1fr; }
