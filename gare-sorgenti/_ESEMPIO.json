@@ -1,0 +1,13 @@
+{
+  "slug": "esempio-giro-tappa1-2024",
+  "titolo": "Giro d'Italia — Tappa 1",
+  "data": "2024-05-04",
+  "genere": "Maschile",
+  "categoria": "Elite",
+  "disciplina": "Strada",
+  "distanza_km": 142.0,
+  "dislivello_m": 1850,
+  "luogo": "Piemonte, IT",
+  "tempo": "3h22m",
+  "note": "Primo esempio di percorso nel database."
+}

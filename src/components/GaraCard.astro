@@ -1,0 +1,113 @@
+---
+import { formatData, formatDistanza, formatDislivello, categoriaColor, disciplinaIcon } from '../lib/gare.js';
+const { gara } = Astro.props;
+const color = categoriaColor(gara.categoria);
+const icon  = disciplinaIcon(gara.disciplina);
+---
+
+<a href={`/gare/${gara.slug}/`} class="card" style={`--cat-color: ${color}`}>
+
+  <div class="card-top">
+    <span class="cat-badge">{gara.categoria ?? '—'}</span>
+    <span class="disc-badge">{icon} {gara.disciplina ?? '—'}</span>
+    <span class="genere-badge">{gara.genere === 'Femminile' ? '♀' : '♂'}</span>
+  </div>
+
+  <h2 class="card-title">{gara.titolo}</h2>
+
+  <div class="card-sub">
+    {gara.luogo && <span class="luogo">{gara.luogo}</span>}
+    <span class="anno">{new Date(gara.data).getFullYear()}</span>
+  </div>
+
+  <div class="card-stats">
+    {gara.distanza_km && (
+      <div class="stat">
+        <span class="stat-v">{formatDistanza(gara.distanza_km)}</span>
+        <span class="stat-l">dist</span>
+      </div>
+    )}
+    {gara.dislivello_m && (
+      <div class="stat">
+        <span class="stat-v">{formatDislivello(gara.dislivello_m)}</span>
+        <span class="stat-l">D+</span>
+      </div>
+    )}
+    {gara.data && (
+      <div class="stat stat-date">
+        <span class="stat-v">{formatData(gara.data)}</span>
+        <span class="stat-l">data</span>
+      </div>
+    )}
+  </div>
+
+  <span class="card-cta">Apri percorso →</span>
+</a>
+
+<style>
+  .card {
+    display: flex; flex-direction: column; gap: 0.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--cat-color, var(--border));
+    padding: 1.25rem 1.5rem 1rem;
+    cursor: pointer; position: relative;
+    transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+  }
+
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(0,0,0,0.1);
+    border-color: var(--cat-color, var(--border));
+  }
+
+  .card-top { display: flex; align-items: center; gap: 0.5rem; }
+
+  .cat-badge {
+    font-family: var(--font-mono); font-size: 0.65rem;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--cat-color);
+    background: color-mix(in srgb, var(--cat-color) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--cat-color) 25%, transparent);
+    padding: 0.2rem 0.55rem; border-radius: 2px;
+  }
+
+  .disc-badge {
+    font-family: var(--font-mono); font-size: 0.65rem;
+    color: var(--text2); background: var(--bg3);
+    border: 1px solid var(--border);
+    padding: 0.2rem 0.55rem; border-radius: 2px;
+  }
+
+  .genere-badge { font-size: 0.75rem; color: var(--text3); margin-left: auto; }
+
+  .card-title {
+    font-family: var(--font-display);
+    font-size: 1.2rem; font-weight: 700; line-height: 1.15;
+    letter-spacing: -0.01em; color: var(--text);
+    margin-top: 0.25rem;
+  }
+
+  .card-sub { display: flex; align-items: center; gap: 0.75rem; font-size: 0.78rem; color: var(--text2); }
+  .luogo::before { content: '↗ '; }
+  .anno { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text3); margin-left: auto; }
+
+  .card-stats {
+    display: flex; gap: 1.25rem;
+    margin-top: 0.5rem; padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .stat { display: flex; flex-direction: column; gap: 0.15rem; }
+  .stat-v { font-family: var(--font-mono); font-size: 0.85rem; font-weight: 500; color: var(--text); }
+  .stat-l { font-family: var(--font-mono); font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text3); }
+  .stat-date { margin-left: auto; align-items: flex-end; }
+
+  .card-cta {
+    font-family: var(--font-mono); font-size: 0.65rem;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--text3); margin-top: 0.25rem;
+    transition: color 0.15s;
+  }
+  .card:hover .card-cta { color: var(--accent); }
+</style>

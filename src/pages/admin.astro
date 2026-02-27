@@ -1,0 +1,521 @@
+---
+// src/pages/admin.astro
+// Pagina statica — l'autenticazione e il submit avvengono lato client
+// comunicando con il Cloudflare Worker /api/pubblica
+---
+
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin — Race DB</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="screen-login" class="screen">
+  <div class="login-box">
+    <div class="brand">⬡ RACE DB <span class="brand-admin">/ ADMIN</span></div>
+    <p class="login-sub">Accesso riservato</p>
+    <div class="field">
+      <label class="field-label">Password</label>
+      <input type="password" id="login-pwd" class="input" placeholder="••••••••" autocomplete="current-password" />
+    </div>
+    <button class="btn btn-primary" id="login-btn">Accedi</button>
+    <div class="login-err" id="login-err"></div>
+  </div>
+</div>
+
+<!-- FORM SCREEN -->
+<div id="screen-form" class="screen" style="display:none">
+  <div class="admin-wrap">
+
+    <header class="admin-header">
+      <div class="brand">⬡ RACE DB <span class="brand-admin">/ ADMIN</span></div>
+      <a href="/" class="back-link">← Torna al database</a>
+    </header>
+
+    <div class="form-card">
+      <h1 class="form-title">Aggiungi percorso</h1>
+
+      <!-- SEZIONE: File -->
+      <div class="section">
+        <div class="section-label">01 — File HTML report</div>
+        <div class="dropzone" id="dropzone">
+          <div class="drop-icon">⬆</div>
+          <div class="drop-text">Trascina qui l'HTML generato da <code>genera_report.py</code></div>
+          <div class="drop-sub">oppure</div>
+          <label class="btn btn-outline" for="file-input">Seleziona file</label>
+          <input type="file" id="file-input" accept=".html" style="display:none" />
+        </div>
+        <div class="file-preview" id="file-preview" style="display:none">
+          <span class="file-icon">✓</span>
+          <span class="file-name" id="file-name"></span>
+          <button class="file-remove" id="file-remove">✕</button>
+        </div>
+      </div>
+
+      <!-- SEZIONE: Metadati -->
+      <div class="section">
+        <div class="section-label">02 — Metadati</div>
+        <div class="fields-grid">
+
+          <div class="field field-full">
+            <label class="field-label">Nome gara <span class="req">*</span></label>
+            <input type="text" id="f-titolo" class="input" placeholder="es. Giro d'Italia — Tappa 12" />
+          </div>
+
+          <div class="field">
+            <label class="field-label">Slug URL <span class="req">*</span></label>
+            <input type="text" id="f-slug" class="input mono" placeholder="giro-italia-tappa-12-2024" />
+            <div class="field-hint">Identificatore unico, niente spazi</div>
+          </div>
+
+          <div class="field">
+            <label class="field-label">Data <span class="req">*</span></label>
+            <input type="date" id="f-data" class="input mono" />
+          </div>
+
+          <div class="field">
+            <label class="field-label">Genere <span class="req">*</span></label>
+            <select id="f-genere" class="input">
+              <option value="">— seleziona —</option>
+              <option>Maschile</option>
+              <option>Femminile</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label class="field-label">Categoria <span class="req">*</span></label>
+            <select id="f-categoria" class="input">
+              <option value="">— seleziona —</option>
+              <option>Elite</option>
+              <option>U23</option>
+              <option>Junior</option>
+              <option>Allievi</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label class="field-label">Disciplina <span class="req">*</span></label>
+            <select id="f-disciplina" class="input">
+              <option value="">— seleziona —</option>
+              <option>Strada</option>
+              <option>Criterium</option>
+              <option>Cronometro</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label class="field-label">Distanza (km)</label>
+            <input type="number" id="f-km" class="input mono" placeholder="128.5" step="0.1" min="0" />
+          </div>
+
+          <div class="field">
+            <label class="field-label">Dislivello (m D+)</label>
+            <input type="number" id="f-d" class="input mono" placeholder="2400" step="1" min="0" />
+          </div>
+
+          <div class="field">
+            <label class="field-label">Luogo / Regione</label>
+            <input type="text" id="f-luogo" class="input" placeholder="es. Toscana, IT" />
+          </div>
+
+          <div class="field">
+            <label class="field-label">Tempo vincitore</label>
+            <input type="text" id="f-tempo" class="input mono" placeholder="4h32m" />
+          </div>
+
+          <div class="field field-full">
+            <label class="field-label">Note</label>
+            <textarea id="f-note" class="input textarea" placeholder="Note opzionali sul percorso..." rows="3"></textarea>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- SUBMIT -->
+      <div class="submit-row">
+        <div class="submit-status" id="submit-status"></div>
+        <button class="btn btn-primary btn-lg" id="submit-btn">
+          <span id="submit-label">Pubblica percorso →</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<style>
+  :root {
+    --bg: #0a0a0a; --bg2: #111; --surface: #1f1f1f; --surface2: #252525;
+    --border: #2a2a2a; --border2: #333;
+    --text: #e8e8e8; --text2: #888; --text3: #555;
+    --accent: #E8D44D; --accent2: #C8302A; --green: #4caf82;
+    --font-display: 'Archivo Black', sans-serif;
+    --font-body: 'Archivo', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--text); font-family: var(--font-body); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+
+  /* SCREENS */
+  .screen { min-height: 100vh; }
+
+  /* LOGIN */
+  .screen-login, #screen-login { display: flex; align-items: center; justify-content: center; padding: 2rem; }
+  #screen-login { background: var(--bg); }
+
+  .login-box {
+    width: 100%; max-width: 360px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--accent);
+    padding: 2rem;
+    display: flex; flex-direction: column; gap: 1.25rem;
+  }
+
+  .brand {
+    font-family: var(--font-display);
+    font-size: 1rem; letter-spacing: 0.08em;
+    color: var(--text);
+  }
+  .brand-admin { color: var(--accent); font-family: var(--font-mono); font-size: 0.75rem; }
+
+  .login-sub { font-size: 0.82rem; color: var(--text2); }
+
+  .login-err {
+    font-family: var(--font-mono); font-size: 0.72rem;
+    color: var(--accent2); min-height: 1rem;
+  }
+
+  /* ADMIN WRAP */
+  .admin-wrap {
+    max-width: 860px; margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+    display: flex; flex-direction: column; gap: 2rem;
+  }
+
+  .admin-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .back-link {
+    font-family: var(--font-mono); font-size: 0.68rem;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--text3); transition: color 0.15s;
+  }
+  .back-link:hover { color: var(--accent); }
+
+  /* FORM CARD */
+  .form-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--accent);
+    padding: 2rem;
+    display: flex; flex-direction: column; gap: 2rem;
+  }
+
+  .form-title {
+    font-family: var(--font-display);
+    font-size: 1.4rem; letter-spacing: 0.02em;
+  }
+
+  /* SECTIONS */
+  .section { display: flex; flex-direction: column; gap: 1rem; }
+
+  .section-label {
+    font-family: var(--font-mono); font-size: 0.65rem;
+    text-transform: uppercase; letter-spacing: 0.15em;
+    color: var(--accent);
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* DROPZONE */
+  .dropzone {
+    border: 2px dashed var(--border2);
+    padding: 2.5rem 1.5rem;
+    display: flex; flex-direction: column; align-items: center; gap: 0.6rem;
+    transition: border-color 0.15s, background 0.15s;
+    cursor: pointer;
+    border-radius: 3px;
+    text-align: center;
+  }
+
+  .dropzone.dragover { border-color: var(--accent); background: rgba(232,212,77,0.04); }
+
+  .drop-icon { font-size: 1.5rem; color: var(--text3); }
+  .drop-text { font-size: 0.85rem; color: var(--text2); }
+  .drop-text code { font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent); }
+  .drop-sub { font-size: 0.75rem; color: var(--text3); }
+
+  .file-preview {
+    display: flex; align-items: center; gap: 0.75rem;
+    background: var(--surface2); border: 1px solid var(--green);
+    padding: 0.6rem 1rem; border-radius: 3px;
+  }
+  .file-icon { color: var(--green); font-size: 0.9rem; }
+  .file-name { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text); flex: 1; }
+  .file-remove { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 0.8rem; transition: color 0.15s; }
+  .file-remove:hover { color: var(--accent2); }
+
+  /* FIELDS */
+  .fields-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  .field { display: flex; flex-direction: column; gap: 0.4rem; }
+  .field-full { grid-column: 1 / -1; }
+
+  .field-label {
+    font-family: var(--font-mono); font-size: 0.62rem;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--text3);
+  }
+
+  .req { color: var(--accent); }
+
+  .field-hint {
+    font-size: 0.7rem; color: var(--text3); font-style: italic;
+  }
+
+  .input {
+    background: var(--bg2); border: 1px solid var(--border2);
+    color: var(--text); font-family: var(--font-body); font-size: 0.88rem;
+    padding: 0.55rem 0.75rem; border-radius: 2px; outline: none;
+    transition: border-color 0.15s;
+    width: 100%;
+    appearance: none;
+  }
+
+  .input:focus { border-color: var(--accent); }
+  .input.mono { font-family: var(--font-mono); font-size: 0.82rem; }
+  .textarea { resize: vertical; min-height: 80px; }
+
+  select.input option { background: var(--surface); }
+
+  /* SUBMIT */
+  .submit-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 1rem; padding-top: 1rem; border-top: 1px solid var(--border);
+  }
+
+  .submit-status {
+    font-family: var(--font-mono); font-size: 0.75rem;
+    color: var(--text2); flex: 1;
+  }
+
+  .submit-status.ok { color: var(--green); }
+  .submit-status.err { color: var(--accent2); }
+
+  /* BUTTONS */
+  .btn {
+    font-family: var(--font-mono); font-size: 0.72rem;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    padding: 0.55rem 1.25rem; cursor: pointer;
+    border-radius: 2px; border: none; transition: all 0.15s;
+    display: inline-flex; align-items: center; gap: 0.4rem;
+  }
+
+  .btn-primary {
+    background: var(--accent); color: #000; font-weight: 600;
+  }
+  .btn-primary:hover { background: #f5e066; }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-lg { padding: 0.75rem 2rem; font-size: 0.8rem; }
+
+  .btn-outline {
+    background: transparent; border: 1px solid var(--border2);
+    color: var(--text2);
+  }
+  .btn-outline:hover { border-color: var(--text2); color: var(--text); }
+
+  @media (max-width: 600px) {
+    .fields-grid { grid-template-columns: 1fr; }
+    .field-full { grid-column: 1; }
+    .submit-row { flex-direction: column; align-items: stretch; }
+  }
+</style>
+
+<script>
+  // ── CONFIGURAZIONE ──────────────────────────────────────────────
+  // La password è verificata lato client (sufficiente per uso personale).
+  // Per sicurezza maggiore, sposta la verifica nel Worker.
+  const ADMIN_PASSWORD = 'CAMBIA_QUESTA_PASSWORD';
+  // ────────────────────────────────────────────────────────────────
+
+  const screenLogin = document.getElementById('screen-login');
+  const screenForm  = document.getElementById('screen-form');
+
+  // LOGIN
+  function tryLogin() {
+    const pwd = document.getElementById('login-pwd').value;
+    if (pwd === ADMIN_PASSWORD) {
+      sessionStorage.setItem('admin_auth', '1');
+      screenLogin.style.display = 'none';
+      screenForm.style.display = '';
+    } else {
+      document.getElementById('login-err').textContent = 'Password errata.';
+    }
+  }
+
+  // Già loggato?
+  if (sessionStorage.getItem('admin_auth') === '1') {
+    screenLogin.style.display = 'none';
+    screenForm.style.display = '';
+  }
+
+  document.getElementById('login-btn').addEventListener('click', tryLogin);
+  document.getElementById('login-pwd').addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
+
+  // ── FILE UPLOAD ─────────────────────────────────────────────────
+  let selectedFile = null;
+
+  function setFile(file) {
+    if (!file || !file.name.endsWith('.html')) {
+      alert('Seleziona un file .html'); return;
+    }
+    selectedFile = file;
+    document.getElementById('file-name').textContent = file.name;
+    document.getElementById('file-preview').style.display = 'flex';
+    document.getElementById('dropzone').style.display = 'none';
+
+    // Auto-slug da nome file
+    const slugField = document.getElementById('f-slug');
+    if (!slugField.value) {
+      slugField.value = file.name.replace('.html', '').replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase();
+    }
+  }
+
+  document.getElementById('file-input').addEventListener('change', e => setFile(e.target.files[0]));
+
+  document.getElementById('file-remove').addEventListener('click', () => {
+    selectedFile = null;
+    document.getElementById('file-preview').style.display = 'none';
+    document.getElementById('dropzone').style.display = 'flex';
+    document.getElementById('file-input').value = '';
+  });
+
+  const dz = document.getElementById('dropzone');
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+  dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('dragover'); setFile(e.dataTransfer.files[0]); });
+  dz.addEventListener('click', () => document.getElementById('file-input').click());
+
+  // ── AUTO SLUG ───────────────────────────────────────────────────
+  document.getElementById('f-titolo').addEventListener('input', e => {
+    const slug = document.getElementById('f-slug');
+    if (!slug.dataset.manual) {
+      slug.value = e.target.value
+        .toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+    }
+  });
+  document.getElementById('f-slug').addEventListener('input', e => {
+    e.target.dataset.manual = '1';
+  });
+
+  // ── SUBMIT ──────────────────────────────────────────────────────
+  document.getElementById('submit-btn').addEventListener('click', async () => {
+    const titolo    = document.getElementById('f-titolo').value.trim();
+    const slug      = document.getElementById('f-slug').value.trim();
+    const data      = document.getElementById('f-data').value;
+    const genere    = document.getElementById('f-genere').value;
+    const categoria = document.getElementById('f-categoria').value;
+    const disciplina= document.getElementById('f-disciplina').value;
+
+    // Validazione
+    if (!selectedFile) return setStatus('Carica prima il file HTML.', 'err');
+    if (!titolo)    return setStatus('Inserisci il nome della gara.', 'err');
+    if (!slug)      return setStatus('Inserisci lo slug.', 'err');
+    if (!data)      return setStatus('Inserisci la data.', 'err');
+    if (!genere)    return setStatus('Seleziona il genere.', 'err');
+    if (!categoria) return setStatus('Seleziona la categoria.', 'err');
+    if (!disciplina)return setStatus('Seleziona la disciplina.', 'err');
+
+    const meta = {
+      slug,
+      titolo,
+      data,
+      genere,
+      categoria,
+      disciplina,
+      distanza_km:  parseFloat(document.getElementById('f-km').value)  || null,
+      dislivello_m: parseFloat(document.getElementById('f-d').value)   || null,
+      luogo:        document.getElementById('f-luogo').value.trim()    || null,
+      tempo:        document.getElementById('f-tempo').value.trim()    || null,
+      note:         document.getElementById('f-note').value.trim()     || null,
+    };
+
+    // Leggi HTML come base64
+    const htmlBase64 = await fileToBase64(selectedFile);
+
+    setStatus('Pubblicazione in corso...', '');
+    document.getElementById('submit-btn').disabled = true;
+
+    try {
+      const res = await fetch('/api/pubblica', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ meta, htmlBase64, password: sessionStorage.getItem('admin_auth') })
+      });
+
+      const json = await res.json();
+      if (res.ok) {
+        setStatus('✓ Percorso pubblicato! Il sito si aggiornerà in ~30 secondi.', 'ok');
+        resetForm();
+      } else {
+        setStatus('Errore: ' + (json.error ?? res.statusText), 'err');
+      }
+    } catch (e) {
+      setStatus('Errore di rete: ' + e.message, 'err');
+    } finally {
+      document.getElementById('submit-btn').disabled = false;
+    }
+  });
+
+  function setStatus(msg, type) {
+    const el = document.getElementById('submit-status');
+    el.textContent = msg;
+    el.className = 'submit-status ' + type;
+  }
+
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function resetForm() {
+    selectedFile = null;
+    document.getElementById('file-preview').style.display = 'none';
+    document.getElementById('dropzone').style.display = 'flex';
+    document.getElementById('file-input').value = '';
+    ['f-titolo','f-slug','f-data','f-km','f-d','f-luogo','f-tempo','f-note'].forEach(id => {
+      document.getElementById(id).value = '';
+    });
+    ['f-genere','f-categoria','f-disciplina'].forEach(id => {
+      document.getElementById(id).selectedIndex = 0;
+    });
+    delete document.getElementById('f-slug').dataset.manual;
+  }
+</script>
+
+</body>
+</html>

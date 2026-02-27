@@ -1,0 +1,358 @@
+---
+import Base from '../layouts/Base.astro';
+import GaraCard from '../components/GaraCard.astro';
+import { GENERI, CATEGORIE, DISCIPLINE } from '../lib/gare.js';
+
+const garaFiles = import.meta.glob('../../gare-sorgenti/*.json', { eager: true });
+let gare = Object.values(garaFiles).map(m => m.default ?? m);
+gare.sort((a, b) => new Date(b.data) - new Date(a.data));
+
+const anni = [...new Set(gare.map(g => new Date(g.data).getFullYear()))].sort((a,b) => b-a);
+const totKm = gare.reduce((s, g) => s + (Number(g.distanza_km) || 0), 0);
+---
+
+<Base title="Race Database — Percorsi Ciclistici">
+<div class="layout">
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <div class="brand">
+        <div class="brand-mark">RDB</div>
+        <div>
+          <div class="brand-name">Race Database</div>
+          <div class="brand-sub">Percorsi Ciclistici</div>
+        </div>
+      </div>
+
+      <div class="db-stats">
+        <div class="db-stat">
+          <span class="db-n" id="count-visible">{gare.length}</span>
+          <span class="db-l">percorsi</span>
+        </div>
+        <div class="db-stat">
+          <span class="db-n">{totKm.toFixed(0)}</span>
+          <span class="db-l">km totali</span>
+        </div>
+      </div>
+
+      <div class="filters">
+
+        <div class="filter-group">
+          <div class="filter-label">Anno</div>
+          <div class="filter-pills" >
+            <button class="pill active" data-group="anno" data-val="all">Tutti</button>
+            {anni.map(a => (
+              <button class="pill" data-group="anno" data-val={String(a)}>{a}</button>
+            ))}
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-label">Genere</div>
+          <div class="filter-pills">
+            <button class="pill active" data-group="genere" data-val="all">Tutti</button>
+            {GENERI.map(g => (
+              <button class="pill" data-group="genere" data-val={g}>{g}</button>
+            ))}
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-label">Categoria</div>
+          <div class="filter-pills">
+            <button class="pill active" data-group="categoria" data-val="all">Tutte</button>
+            {CATEGORIE.map(c => (
+              <button class="pill" data-group="categoria" data-val={c}>{c}</button>
+            ))}
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-label">Disciplina</div>
+          <div class="filter-pills">
+            <button class="pill active" data-group="disciplina" data-val="all">Tutte</button>
+            {DISCIPLINE.map(d => (
+              <button class="pill" data-group="disciplina" data-val={d}>{d}</button>
+            ))}
+          </div>
+        </div>
+
+        <button class="reset-filters" id="reset-filters">Azzera filtri</button>
+      </div>
+
+
+
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <div class="topbar">
+      <div class="search-wrap">
+        <span class="search-icon">⌕</span>
+        <input type="text" id="search-input" class="search-input" placeholder="Cerca per nome, luogo..." autocomplete="off" />
+      </div>
+      <div class="sort-wrap">
+        <label class="sort-label">Ordina</label>
+        <select id="sort-select" class="sort-select">
+          <option value="data-desc">Data ↓</option>
+          <option value="data-asc">Data ↑</option>
+          <option value="km-desc">Km ↓</option>
+          <option value="km-asc">Km ↑</option>
+          <option value="nome">Nome A→Z</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="grid" id="gare-grid">
+      {gare.length === 0 ? (
+        <div class="empty">
+          <div class="empty-icon">◎</div>
+          <div class="empty-title">Database vuoto</div>
+          <div class="empty-sub">Aggiungi il primo percorso seguendo le istruzioni nel README</div>
+        </div>
+      ) : (
+        gare.map(g => (
+          <div class="card-wrap"
+            data-anno={new Date(g.data).getFullYear()}
+            data-genere={g.genere ?? ''}
+            data-categoria={g.categoria ?? ''}
+            data-disciplina={g.disciplina ?? ''}
+            data-titolo={(g.titolo ?? '').toLowerCase()}
+            data-luogo={(g.luogo ?? '').toLowerCase()}
+            data-km={g.distanza_km ?? 0}
+          >
+            <GaraCard gara={g} />
+          </div>
+        ))
+      )}
+    </div>
+
+    <div class="no-results" id="no-results" style="display:none">
+      <div class="empty-icon">◎</div>
+      <div class="empty-title">Nessun risultato</div>
+      <div class="empty-sub">Prova a modificare i filtri</div>
+    </div>
+
+  </main>
+</div>
+</Base>
+
+<script>
+  const state = { anno: 'all', genere: 'all', categoria: 'all', disciplina: 'all', q: '', sort: 'data-desc' };
+  const cards   = Array.from(document.querySelectorAll('.card-wrap'));
+  const counter = document.getElementById('count-visible');
+  const noRes   = document.getElementById('no-results');
+  const grid    = document.getElementById('gare-grid');
+
+  function applyAll() {
+    const q = state.q.toLowerCase();
+    let visible = 0;
+    cards.forEach(c => {
+      const match =
+        (state.anno       === 'all' || c.dataset.anno       === state.anno) &&
+        (state.genere     === 'all' || c.dataset.genere     === state.genere) &&
+        (state.categoria  === 'all' || c.dataset.categoria  === state.categoria) &&
+        (state.disciplina === 'all' || c.dataset.disciplina === state.disciplina) &&
+        (!q || c.dataset.titolo.includes(q) || c.dataset.luogo.includes(q));
+      c.style.display = match ? '' : 'none';
+      if (match) visible++;
+    });
+    counter.textContent = visible;
+    noRes.style.display = visible === 0 && cards.length > 0 ? '' : 'none';
+
+    const sorted = cards.filter(c => c.style.display !== 'none');
+    sorted.sort((a, b) => {
+      if (state.sort === 'data-desc') return Number(b.dataset.anno) - Number(a.dataset.anno);
+      if (state.sort === 'data-asc')  return Number(a.dataset.anno) - Number(b.dataset.anno);
+      if (state.sort === 'km-desc')   return Number(b.dataset.km)   - Number(a.dataset.km);
+      if (state.sort === 'km-asc')    return Number(a.dataset.km)   - Number(b.dataset.km);
+      if (state.sort === 'nome')      return a.dataset.titolo.localeCompare(b.dataset.titolo);
+      return 0;
+    });
+    sorted.forEach(c => grid.appendChild(c));
+  }
+
+  document.querySelectorAll('.pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      btn.closest('.filter-pills').querySelectorAll('.pill').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state[btn.dataset.group] = btn.dataset.val;
+      applyAll();
+    });
+  });
+
+  document.getElementById('search-input').addEventListener('input', e => { state.q = e.target.value; applyAll(); });
+  document.getElementById('sort-select').addEventListener('change', e => { state.sort = e.target.value; applyAll(); });
+
+  document.getElementById('reset-filters').addEventListener('click', () => {
+    state.anno = state.genere = state.categoria = state.disciplina = 'all';
+    state.q = ''; state.sort = 'data-desc';
+    document.getElementById('search-input').value = '';
+    document.getElementById('sort-select').value = 'data-desc';
+    document.querySelectorAll('.pill').forEach(b => b.classList.toggle('active', b.dataset.val === 'all'));
+    applyAll();
+  });
+</script>
+
+<style>
+  .layout {
+    display: grid;
+    grid-template-columns: 250px 1fr;
+    min-height: 100vh;
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    position: sticky; top: 0;
+    height: 100vh; overflow-y: auto;
+  }
+
+  .sidebar-inner {
+    display: flex; flex-direction: column;
+    padding: 1.75rem 1.25rem;
+    height: 100%; gap: 1.5rem;
+  }
+
+  .brand {
+    display: flex; align-items: center; gap: 0.85rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .brand-mark {
+    font-family: var(--font-display);
+    font-size: 0.85rem; font-weight: 800;
+    letter-spacing: 0.08em;
+    background: var(--text);
+    color: var(--bg);
+    padding: 0.3rem 0.5rem;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .brand-name {
+    font-family: var(--font-display);
+    font-size: 0.95rem; font-weight: 700;
+    letter-spacing: 0.02em; color: var(--text);
+  }
+
+  .brand-sub {
+    font-family: var(--font-mono); font-size: 0.6rem;
+    text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--text3); margin-top: 0.1rem;
+  }
+
+  .db-stats { display: flex; gap: 1.5rem; }
+  .db-stat { display: flex; flex-direction: column; gap: 0.1rem; }
+  .db-n {
+    font-family: var(--font-display);
+    font-size: 1.8rem; font-weight: 800;
+    color: var(--accent); line-height: 1; letter-spacing: -0.02em;
+  }
+  .db-l {
+    font-family: var(--font-mono); font-size: 0.6rem;
+    text-transform: uppercase; letter-spacing: 0.1em; color: var(--text3);
+  }
+
+  .filters { display: flex; flex-direction: column; gap: 1.25rem; flex: 1; }
+  .filter-group { display: flex; flex-direction: column; gap: 0.5rem; }
+  .filter-label {
+    font-family: var(--font-mono); font-size: 0.6rem;
+    text-transform: uppercase; letter-spacing: 0.12em; color: var(--text3);
+  }
+
+  .filter-pills { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+
+  .pill {
+    font-family: var(--font-mono); font-size: 0.68rem;
+    padding: 0.3rem 0.65rem;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--text2); cursor: pointer; border-radius: 2px;
+    transition: all 0.12s;
+  }
+  .pill:hover { border-color: var(--text2); color: var(--text); }
+  .pill.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+
+  .reset-filters {
+    font-family: var(--font-mono); font-size: 0.65rem;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--text3); background: transparent;
+    border: 1px solid var(--border);
+    padding: 0.4rem 0.75rem; cursor: pointer; border-radius: 2px;
+    transition: all 0.12s; align-self: flex-start; margin-top: auto;
+  }
+  .reset-filters:hover { color: var(--accent); border-color: var(--accent); }
+
+  .sidebar-footer {
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
+
+
+  /* MAIN */
+  .main {
+    display: flex; flex-direction: column; gap: 1.25rem;
+    padding: 1.75rem 2rem 3rem; min-width: 0;
+  }
+
+  .topbar {
+    display: flex; align-items: center; gap: 1rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .search-wrap {
+    flex: 1; display: flex; align-items: center; gap: 0.6rem;
+    background: var(--bg2); border: 1px solid var(--border);
+    padding: 0 0.9rem; border-radius: 3px; transition: border-color 0.15s;
+  }
+  .search-wrap:focus-within { border-color: var(--text2); }
+  .search-icon { color: var(--text3); font-size: 1rem; }
+  .search-input {
+    background: transparent; border: none; outline: none;
+    font-family: var(--font-body); font-size: 0.88rem; color: var(--text);
+    padding: 0.6rem 0; width: 100%;
+  }
+  .search-input::placeholder { color: var(--text3); }
+
+  .sort-wrap { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+  .sort-label {
+    font-family: var(--font-mono); font-size: 0.65rem;
+    text-transform: uppercase; letter-spacing: 0.1em; color: var(--text3);
+  }
+  .sort-select {
+    font-family: var(--font-mono); font-size: 0.72rem;
+    background: var(--bg2); border: 1px solid var(--border);
+    color: var(--text); padding: 0.4rem 0.75rem;
+    border-radius: 2px; cursor: pointer; outline: none;
+  }
+  .sort-select:focus { border-color: var(--text2); }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem; align-content: start;
+  }
+
+  .empty, .no-results {
+    grid-column: 1 / -1;
+    text-align: center; padding: 5rem 2rem; color: var(--text3);
+  }
+  .empty-icon { font-size: 2.5rem; margin-bottom: 1rem; color: var(--border2); }
+  .empty-title { font-family: var(--font-display); font-size: 1.25rem; color: var(--text2); margin-bottom: 0.5rem; }
+  .empty-sub { font-size: 0.82rem; line-height: 1.6; }
+  .empty-sub a { color: var(--accent); }
+
+  @media (max-width: 768px) {
+    .layout { grid-template-columns: 1fr; }
+    .sidebar { position: static; height: auto; }
+    .sidebar-inner { padding: 1rem; }
+    .main { padding: 1rem; }
+    .grid { grid-template-columns: 1fr; }
+    .db-stats { display: none; }
+  }
+</style>

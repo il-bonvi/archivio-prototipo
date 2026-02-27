@@ -1,0 +1,122 @@
+---
+export async function getStaticPaths() {
+  const garaFiles = import.meta.glob('../../../gare-sorgenti/*.json', { eager: true });
+  return Object.values(garaFiles).map(m => {
+    const data = m.default ?? m;
+    return { params: { slug: data.slug } };
+  });
+}
+
+const { slug } = Astro.params;
+const garaFiles = import.meta.glob('../../../gare-sorgenti/*.json', { eager: true });
+const gara = Object.values(garaFiles).map(m => m.default ?? m).find(g => g.slug === slug);
+if (!gara) return Astro.redirect('/');
+
+import { formatData, formatDistanza, formatDislivello, categoriaColor } from '../../lib/gare.js';
+const color = categoriaColor(gara.categoria);
+---
+
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{gara.titolo} — Race DB</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Barlow:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:     #f5f2ed;
+      --bg2:    #ffffff;
+      --border: #c8c2b8;
+      --text:   #0f0f0f;
+      --text2:  #7a746b;
+      --text3:  #aaa49e;
+      --accent: #d4401a;
+      --font-display: 'Barlow Condensed', sans-serif;
+      --font-body:    'Barlow', sans-serif;
+      --font-mono:    'DM Mono', monospace;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); -webkit-font-smoothing: antialiased; }
+
+    .top-bar {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--bg2);
+      border-bottom: 2px solid var(--cat-color, #888);
+      display: flex; align-items: center;
+      padding: 0 1.25rem; height: 52px; gap: 1rem;
+      box-shadow: 0 1px 8px rgba(0,0,0,0.06);
+    }
+
+    .back {
+      font-family: var(--font-mono); font-size: 0.68rem;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--text3); text-decoration: none;
+      display: flex; align-items: center; gap: 0.35rem;
+      flex-shrink: 0; transition: color 0.15s;
+    }
+    .back:hover { color: var(--accent); }
+
+    .bar-divider { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
+
+    .bar-cat {
+      font-family: var(--font-mono); font-size: 0.65rem;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      flex-shrink: 0;
+    }
+
+    .bar-title {
+      font-family: var(--font-display);
+      font-size: 1.1rem; font-weight: 700; letter-spacing: 0.01em;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      flex: 1; color: var(--text);
+    }
+
+    .bar-stats { display: flex; gap: 1.25rem; flex-shrink: 0; }
+    .bstat { display: flex; flex-direction: column; align-items: flex-end; }
+    .bstat-v { font-family: var(--font-mono); font-size: 0.82rem; font-weight: 500; color: var(--text); line-height: 1; }
+    .bstat-l { font-family: var(--font-mono); font-size: 0.55rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text3); }
+
+    .report-frame { width: 100%; border: none; display: block; height: calc(100vh - 52px); }
+
+    @media (max-width: 600px) {
+      .bar-stats { display: none; }
+      .bar-cat { display: none; }
+      .bar-divider:not(:first-of-type) { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="top-bar" style={`--cat-color: ${color}`}>
+    <a href="/" class="back">← Race DB</a>
+    <div class="bar-divider"></div>
+    <span class="bar-cat" style={`color: ${color}`}>{gara.categoria} {gara.genere === 'Femminile' ? '♀' : '♂'} · {gara.disciplina}</span>
+    <div class="bar-divider"></div>
+    <span class="bar-title">{gara.titolo}</span>
+    <div class="bar-stats">
+      {gara.distanza_km && (
+        <div class="bstat">
+          <span class="bstat-v">{formatDistanza(gara.distanza_km)}</span>
+          <span class="bstat-l">dist</span>
+        </div>
+      )}
+      {gara.dislivello_m && (
+        <div class="bstat">
+          <span class="bstat-v">{formatDislivello(gara.dislivello_m)}</span>
+          <span class="bstat-l">D+</span>
+        </div>
+      )}
+      {gara.data && (
+        <div class="bstat">
+          <span class="bstat-v">{formatData(gara.data)}</span>
+          <span class="bstat-l">data</span>
+        </div>
+      )}
+    </div>
+  </div>
+
+  <iframe class="report-frame" src={`/gare/${slug}.html`} title={gara.titolo}></iframe>
+</body>
+</html>
