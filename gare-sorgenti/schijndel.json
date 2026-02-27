@@ -2,10 +2,10 @@
   "slug": "schijndel",
   "titolo": "Schijndel",
   "data": "2026-02-27",
-  "genere": "Maschile",
-  "categoria": "Elite",
+  "genere": "Femminile",
+  "categoria": "Junior",
   "disciplina": "Strada",
   "distanza_km": 52.96,
-  "dislivello_m": 25.0,
+  "dislivello_m": 42,
   "luogo": "Olanda"
 }

@@ -391,7 +391,7 @@ def main():
             sys.exit("Nessun file selezionato.")
 
     # 2. Leggi dati dal GPX
-    print(f"⟳ Lettura GPX: {gpx_path.name}...")
+    print(f"[*] Lettura GPX: {gpx_path.name}...")
     gpx_data = parse_gpx(gpx_path)
     if gpx_data['distanza_km']:
         print(f"  Distanza rilevata: {gpx_data['distanza_km']} km")
@@ -432,26 +432,26 @@ def main():
     template_path = find_template(args.template)
     html_content  = generate_html(gpx_path, template_path, title)
     html_path.write_text(html_content, encoding='utf-8')
-    print(f"✓ HTML  → {html_path}")
+    print(f"[OK] HTML  -> {html_path}")
 
     # 6. Salva JSON (rimuovi None)
     meta_clean = {k: v for k, v in meta.items() if v is not None}
     json_path.write_text(json.dumps(meta_clean, ensure_ascii=False, indent=2), encoding='utf-8')
-    print(f"✓ JSON  → {json_path}")
+    print(f"[OK] JSON  -> {json_path}")
 
     # 7. Build
     if not args.no_build:
-        print("\n⟳ npm run build...")
+        print("\n[*] npm run build...")
         result = subprocess.run(
             ["npm", "run", "build"],
             cwd=ARCHIVIO_DIR,
             shell=(sys.platform == "win32")
         )
         if result.returncode == 0:
-            print("\n✓ Build completata!")
-            print("  → Trascina la cartella  dist/  su  https://app.netlify.com/drop")
+            print("\n[OK] Build completata!")
+            print("  -> Trascina la cartella  dist/  su  https://app.netlify.com/drop")
         else:
-            print("\n✗ Build fallita.")
+            print("\n[FAIL] Build fallita.")
             sys.exit(1)
     else:
         print("\nBuild saltata. Lancia: npm run build")
