@@ -34,31 +34,9 @@ from datetime import date
 ARCHIVIO_DIR = Path(__file__).parent.parent
 # ─────────────────────────────────────────────────────────────────────────────
 
-AUTOLOAD_TEMPLATE = """<!--GPXREPORT_START-->
-<script>
-(function(){{
-    var GPX_B64 = "{gpx_b64}";
-    var GPX_NAME = "{gpx_name}";
-    var gpxText = decodeURIComponent(escape(atob(GPX_B64)));
-    window._gpxRawText = gpxText;
-    window._gpxFileName = GPX_NAME;
-    if (typeof parseGPX === 'function') parseGPX(gpxText);
-}})();
-</script>
-<!--GPXREPORT_END-->"""
 
-TITLE_HTML = """<div id="report-title-bar" style="
-    text-align:center;
-    padding: 18px 24px 10px;
-    font-family: 'Inter', sans-serif;
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #111827;
-    letter-spacing: -0.02em;
-    border-bottom: 2px solid #fc5200;
-    margin-bottom: 0;
-">{title}</div>
-"""
+
+
 
 CATEGORIE  = ["Elite", "U23", "Junior", "Allievi"]
 GENERI     = ["Maschile", "Femminile"]
@@ -125,14 +103,70 @@ def parse_gpx(gpx_path: Path) -> dict:
             if diff > 0:
                 d_plus += diff
 
+        # Punto centrale per il geocoding
+        mid = coords[len(coords) // 2]
+        center_lat, center_lon = mid[0], mid[1]
+
         return {
             'distanza_km': round(dist_m / 1000, 2),
             'dislivello_m': round(d_plus) if d_plus > 0 else None,
+            'center_lat':   center_lat,
+            'center_lon':   center_lon,
         }
 
     except Exception as e:
         print(f"  Avviso: impossibile leggere dati dal GPX ({e})")
-        return {'distanza_km': None, 'dislivello_m': None}
+        return {'distanza_km': None, 'dislivello_m': None, 'center_lat': None, 'center_lon': None}
+
+
+# ── REVERSE GEOCODING ─────────────────────────────────────────────────────────
+
+def reverse_geocode(lat: float, lon: float) -> str | None:
+    """
+    Ritorna 'Provincia, Regione, IT' tramite Nominatim (OpenStreetMap).
+    Nessuna API key richiesta. Ritorna None se offline o in caso di errore.
+    """
+    import urllib.request
+    import urllib.parse
+    import json as _json
+
+    try:
+        params = urllib.parse.urlencode({
+            "lat": round(lat, 5),
+            "lon": round(lon, 5),
+            "format": "json",
+            "zoom": 8,          # livello regione/provincia
+            "addressdetails": 1,
+        })
+        url = f"https://nominatim.openstreetmap.org/reverse?{params}"
+        req = urllib.request.Request(url, headers={"User-Agent": "race-db-archivio/1.0"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = _json.loads(resp.read())
+
+        addr = data.get("address", {})
+
+        # Provincia (county o city)
+        provincia = (
+            addr.get("county") or
+            addr.get("city") or
+            addr.get("town") or
+            addr.get("village") or
+            ""
+        )
+        # Rimuovi suffissi tipo "Provincia di Varese" → "Varese"
+        for prefix in ("Provincia di ", "Province of ", "Distretto di "):
+            if provincia.startswith(prefix):
+                provincia = provincia[len(prefix):]
+
+        # Stato abbreviato
+        country_code = addr.get("country_code", "").upper()  # "IT", "FR", "BE"...
+
+        parts = [p for p in [provincia, country_code] if p]
+        return ", ".join(parts) if parts else None
+
+    except Exception:
+        return None
+
 
 
 # ── SLUG ─────────────────────────────────────────────────────────────────────
@@ -146,9 +180,119 @@ def slugify(s: str) -> str:
     return s.strip('-')
 
 
+# ── CALENDARIO POPUP ─────────────────────────────────────────────────────────
+
+def _show_calendar(parent, target_entry, BG, ACCENT, FG):
+    """Mini calendario popup. Scrive la data selezionata in target_entry."""
+    import tkinter as tk
+    import calendar as cal_mod
+    from datetime import date as date_cls
+
+    # Leggi data iniziale dall'entry
+    try:
+        parts = target_entry.get().split("-")
+        cur_year, cur_month = int(parts[0]), int(parts[1])
+    except Exception:
+        today = date_cls.today()
+        cur_year, cur_month = today.year, today.month
+
+    top = tk.Toplevel(parent)
+    top.title("Seleziona data")
+    top.resizable(False, False)
+    top.attributes("-topmost", True)
+    top.configure(bg=BG)
+    top.grab_set()
+
+    state = {"year": cur_year, "month": cur_month}
+
+    # ── header navigazione ──
+    nav = tk.Frame(top, bg=BG)
+    nav.pack(fill="x", padx=10, pady=(10,4))
+
+    lbl_month = tk.Label(nav, text="", font=("Helvetica", 11, "bold"),
+                         bg=BG, fg=FG, width=16)
+    lbl_month.pack(side="left", expand=True)
+
+    def prev_month():
+        if state["month"] == 1:
+            state["month"] = 12; state["year"] -= 1
+        else:
+            state["month"] -= 1
+        refresh()
+
+    def next_month():
+        if state["month"] == 12:
+            state["month"] = 1; state["year"] += 1
+        else:
+            state["month"] += 1
+        refresh()
+
+    tk.Button(nav, text="◀", font=("Helvetica", 10), bg=BG, fg=FG,
+              relief="flat", bd=0, cursor="hand2",
+              command=prev_month).pack(side="left")
+    tk.Button(nav, text="▶", font=("Helvetica", 10), bg=BG, fg=FG,
+              relief="flat", bd=0, cursor="hand2",
+              command=next_month).pack(side="right")
+
+    # ── griglia giorni ──
+    grid_frame = tk.Frame(top, bg=BG)
+    grid_frame.pack(padx=10, pady=(0,10))
+
+    GIORNI = ["Lu", "Ma", "Me", "Gi", "Ve", "Sa", "Do"]
+    for col, g in enumerate(GIORNI):
+        tk.Label(grid_frame, text=g, font=("Helvetica", 9, "bold"),
+                 bg=BG, fg="#7a746b", width=3).grid(row=0, column=col, pady=(0,4))
+
+    day_buttons = []
+
+    def refresh():
+        for btn in day_buttons:
+            btn.destroy()
+        day_buttons.clear()
+
+        y, m = state["year"], state["month"]
+        lbl_month.config(text=f"{cal_mod.month_name[m]} {y}")
+
+        # Prima cella: weekday del 1° del mese (0=lun)
+        first_wd = cal_mod.weekday(y, m, 1)
+        days_in_month = cal_mod.monthrange(y, m)[1]
+        today = date_cls.today()
+
+        cell = 0
+        for blank in range(first_wd):
+            tk.Label(grid_frame, text="", bg=BG, width=3).grid(
+                row=1 + cell // 7, column=cell % 7)
+            cell += 1
+
+        for day in range(1, days_in_month + 1):
+            d = day
+            is_today = (y == today.year and m == today.month and d == today.day)
+            bg_col = ACCENT if is_today else BG
+            fg_col = "white" if is_today else FG
+
+            btn = tk.Button(
+                grid_frame, text=str(d), font=("Helvetica", 10),
+                bg=bg_col, fg=fg_col, relief="flat", bd=0,
+                width=3, cursor="hand2",
+                activebackground=ACCENT, activeforeground="white",
+            )
+            btn.config(command=lambda dd=d: select_day(dd))
+            btn.grid(row=1 + cell // 7, column=cell % 7, pady=1)
+            day_buttons.append(btn)
+            cell += 1
+
+    def select_day(day):
+        chosen = f"{state['year']:04d}-{state['month']:02d}-{day:02d}"
+        target_entry.delete(0, "end")
+        target_entry.insert(0, chosen)
+        top.destroy()
+
+    refresh()
+
+
 # ── DIALOG METADATI ───────────────────────────────────────────────────────────
 
-def ask_metadata(default_title: str, gpx_path_initial: Path, gpx_data: dict) -> tuple | None:
+def ask_metadata(default_title: str, gpx_path_initial: Path, gpx_data: dict, luogo_iniziale: str = "") -> tuple | None:
     """Ritorna (meta_dict, gpx_path) oppure None se annullato."""
     import tkinter as tk
     from tkinter import ttk, messagebox, filedialog
@@ -206,6 +350,15 @@ def ask_metadata(default_title: str, gpx_path_initial: Path, gpx_data: dict) -> 
         e_dp.delete(0, tk.END)
         if raw_d: e_dp.insert(0, str(round(raw_d * g)))
 
+        # Aggiorna luogo tramite geocoding
+        lat = new_data.get("center_lat")
+        lon = new_data.get("center_lon")
+        if lat and lon:
+            luogo = reverse_geocode(lat, lon)
+            if luogo:
+                e_luogo.delete(0, tk.END)
+                e_luogo.insert(0, luogo)
+
         # Aggiorna titolo/slug solo se non modificati manualmente
         if not slug_manual.get():
             e_titolo.delete(0, tk.END)
@@ -235,17 +388,34 @@ def ask_metadata(default_title: str, gpx_path_initial: Path, gpx_data: dict) -> 
         if val: e.insert(0, str(val))
         return e
 
-    def cmb(row_n, values):
+    def cmb(row_n, values, default=0):
         c = ttk.Combobox(frame, values=values, state="readonly", font=FONT_ENTRY)
         c.grid(row=row_n*2+1, column=0, columnspan=2, sticky="ew")
-        c.current(0)
+        c.current(default)
         return c
+
+    def make_date_field(row_n, initial_val):
+        """Entry data + bottone calendario popup."""
+        f_row = tk.Frame(frame, bg=BG)
+        f_row.grid(row=row_n*2+1, column=0, columnspan=2, sticky="ew")
+        f_row.grid_columnconfigure(0, weight=1)
+        e = tk.Entry(f_row, font=FONT_ENTRY, bg="white", fg=FG, relief="solid", bd=1)
+        e.grid(row=0, column=0, sticky="ew")
+        e.insert(0, initial_val)
+
+        def open_cal():
+            _show_calendar(root, e, BG, ACCENT, FG)
+
+        tk.Button(f_row, text="📅", font=("Helvetica", 11), bg=BG, fg=FG,
+                  relief="flat", bd=0, cursor="hand2",
+                  command=open_cal).grid(row=0, column=1, padx=(4,0))
+        return e
 
     lbl("Nome gara *", 0);       e_titolo   = ent(0, default_title)
     lbl("Slug URL *", 1);        e_slug     = ent(1)
-    lbl("Data (AAAA-MM-GG) *",2);e_data     = ent(2, date.today().isoformat())
-    lbl("Genere *", 3);          cb_genere  = cmb(3, GENERI)
-    lbl("Categoria *", 4);       cb_cat     = cmb(4, CATEGORIE)
+    lbl("Data (AAAA-MM-GG) *",2);e_data     = make_date_field(2, date.today().isoformat())
+    lbl("Genere *", 3);          cb_genere  = cmb(3, GENERI, default=GENERI.index("Femminile"))
+    lbl("Categoria *", 4);       cb_cat     = cmb(4, CATEGORIE, default=CATEGORIE.index("Junior"))
     lbl("Disciplina *", 5);      cb_disc    = cmb(5, DISCIPLINE)
 
     # Auto-slug
@@ -306,7 +476,7 @@ def ask_metadata(default_title: str, gpx_path_initial: Path, gpx_data: dict) -> 
     giri_var.trace_add("write", update_stats)
 
     lbl2("Luogo / Regione", 1, 0, colspan=2)
-    e_luogo = ent2(1, 0, colspan=2)
+    e_luogo = ent2(1, 0, val=luogo_iniziale, colspan=2)
 
     tk.Label(frame2, text="Note (opzionali)", font=FONT_LABEL, bg=BG, fg="#7a746b",
              anchor="w").grid(row=4, column=0, columnspan=3, sticky="w", pady=(10,1))
@@ -369,18 +539,6 @@ def ask_metadata(default_title: str, gpx_path_initial: Path, gpx_data: dict) -> 
         return None
     return result, current_gpx[0]
 
-# ── TEMPLATE ─────────────────────────────────────────────────────────────────
-
-def find_template(template_arg):
-    if template_arg:
-        p = Path(template_arg)
-        if p.exists(): return p
-        sys.exit(f"Errore: template non trovato: {template_arg}")
-    for c in [ARCHIVIO_DIR / 'index.html',
-              Path(__file__).parent / 'index.html',
-              Path.cwd() / 'index.html']:
-        if c.exists(): return c
-    sys.exit("Errore: index.html non trovato. Usa --template /path/index.html")
 
 
 # ── SELEZIONE FILE GPX ────────────────────────────────────────────────────────
@@ -397,30 +555,6 @@ def pick_gpx_file():
     return Path(path) if path else None
 
 
-# ── GENERA HTML ───────────────────────────────────────────────────────────────
-
-def generate_html(gpx_path: Path, template_path: Path, title: str) -> str:
-    try:
-        gpx_text = gpx_path.read_text(encoding='utf-8')
-    except UnicodeDecodeError:
-        gpx_text = gpx_path.read_text(encoding='latin-1')
-
-    gpx_b64 = base64.b64encode(gpx_text.encode('utf-8')).decode('ascii')
-    gpx_name = gpx_path.name
-    html = template_path.read_text(encoding='utf-8')
-
-    html = re.sub(r'<!--GPXREPORT_START-->.*?<!--GPXREPORT_END-->', '', html, flags=re.DOTALL)
-    html = re.sub(r'<title>[^<]*</title>', f'<title>{title}</title>', html)
-    html = re.sub(r'(#data-content\s*\{[^}]*)display\s*:\s*none', r'\1display: block', html)
-    html = re.sub(r'(<div id="upload-section")([^>]*)>', r'\1\2 style="display:none!important">', html)
-    html = re.sub(r'<div id="reset-bar".*?</div>', '', html, flags=re.DOTALL)
-    html = html.replace("if (rb) rb.style.display = 'flex';", "// report: reset-bar rimosso")
-    html = html.replace("document.getElementById('reset-bar').style.display = 'none';", "// report: reset-bar rimosso")
-    html = re.sub(r'(<p class="sv-hint")', r'\1 style="display:none"', html)
-    html = html.replace('<div class="container">', '<div class="container">\n' + TITLE_HTML.format(title=title), 1)
-    autoload = AUTOLOAD_TEMPLATE.format(gpx_b64=gpx_b64, gpx_name=gpx_name.replace('"', '\\"'))
-    html = html.replace('</body>', autoload + '\n</body>', 1)
-    return html
 
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
@@ -428,7 +562,6 @@ def generate_html(gpx_path: Path, template_path: Path, title: str) -> str:
 def main():
     parser = argparse.ArgumentParser(description='Genera report HTML da GPX')
     parser.add_argument('gpx', nargs='?', default=None, help='Path al file GPX')
-    parser.add_argument('--template', default=None, help='Path al template index.html')
     args = parser.parse_args()
 
     # 1. Seleziona GPX
@@ -449,8 +582,20 @@ def main():
     if gpx_data['dislivello_m']:
         print(f"  Dislivello rilevato: +{gpx_data['dislivello_m']} m")
 
+    # 2b. Geocoding luogo
+    luogo_auto = ""
+    lat = gpx_data.get("center_lat")
+    lon = gpx_data.get("center_lon")
+    if lat and lon:
+        print(f"[*] Geocoding ({lat:.4f}, {lon:.4f})...")
+        luogo_auto = reverse_geocode(lat, lon) or ""
+        if luogo_auto:
+            print(f"  Luogo rilevato: {luogo_auto}")
+        else:
+            print(f"  Geocoding non disponibile (offline?)")
+
     # 3. Dialog metadati
-    res = ask_metadata(gpx_path.stem, gpx_path, gpx_data)
+    res = ask_metadata(gpx_path.stem, gpx_path, gpx_data, luogo_iniziale=luogo_auto)
     if res is None:
         print("Annullato.")
         sys.exit(0)
@@ -460,16 +605,16 @@ def main():
     title = meta["titolo"]
 
     # 4. Cartelle destinazione
-    out_html_dir = ARCHIVIO_DIR / "public" / "gare"
+    out_gpx_dir  = ARCHIVIO_DIR / "public" / "gpx"
     out_json_dir = ARCHIVIO_DIR / "gare-sorgenti"
-    out_html_dir.mkdir(parents=True, exist_ok=True)
+    out_gpx_dir.mkdir(parents=True, exist_ok=True)
     out_json_dir.mkdir(parents=True, exist_ok=True)
 
-    html_path = out_html_dir / f"{slug}.html"
     json_path = out_json_dir / f"{slug}.json"
 
+
     # 5. Avvisa se esiste già
-    if html_path.exists() or json_path.exists():
+    if json_path.exists():
         import tkinter as tk
         from tkinter import messagebox
         root = tk.Tk(); root.withdraw(); root.attributes('-topmost', True)
@@ -480,11 +625,11 @@ def main():
             print("Operazione annullata.")
             sys.exit(0)
 
-    # 6. Genera e salva HTML
-    template_path = find_template(args.template)
-    html_content  = generate_html(gpx_path, template_path, title)
-    html_path.write_text(html_content, encoding='utf-8')
-    print(f"[OK] HTML  -> {html_path}")
+    # 6. Copia GPX in public/gpx/
+    import shutil
+    gpx_out = out_gpx_dir / f"{slug}.gpx"
+    shutil.copy2(gpx_path, gpx_out)
+    print(f"[OK] GPX   -> {gpx_out}")
 
     # 7. Salva JSON (rimuovi None)
     meta_clean = {k: v for k, v in meta.items() if v is not None}

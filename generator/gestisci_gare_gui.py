@@ -1,371 +1,667 @@
 #!/usr/bin/env python3
 """
-gestisci_gare_gui.py — GUI tkinter per gestire il database delle gare.
+genera_report.py — Genera report HTML da GPX e lo aggiunge all'archivio Astro.
 
-Permette di:
-  - Visualizzare tutte le gare
-  - Modificare metadati
-  - Eliminare gare
-  - Rigenerare report da GPX
-  - Fare git push per pubblicare sul sito
+Uso:
+    python generator/genera_report.py                  # dialog grafico completo
+    python generator/genera_report.py percorso.gpx     # salta selezione file
+
+Lo script:
+  1. Chiede di selezionare il file GPX
+  2. Legge distanza e dislivello direttamente dal GPX
+  3. Mostra form con tutti i metadati precompilati
+  4. Genera HTML → public/gare/<slug>.html
+  5. Crea JSON → gare-sorgenti/<slug>.json
+
+  Per pubblicare sul sito:
+    git add .
+    git commit -m "Aggiungi gara: <titolo>"
+    git push
 """
 
 import sys
+import re
 import json
+import math
+import base64
+import argparse
 import subprocess
-import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+import xml.etree.ElementTree as ET
 from pathlib import Path
-from datetime import datetime
+from datetime import date
 
-# Cartella dell'archivio Astro
+# ── CONFIGURAZIONE ───────────────────────────────────────────────────────────
 ARCHIVIO_DIR = Path(__file__).parent.parent
-GARE_SORGENTI_DIR = ARCHIVIO_DIR / "gare-sorgenti"
-GARE_PUBLIC_DIR = ARCHIVIO_DIR / "public" / "gare"
+# ─────────────────────────────────────────────────────────────────────────────
 
-GENERI     = ["Maschile", "Femminile"]
+
+
+
+
 CATEGORIE  = ["Elite", "U23", "Junior", "Allievi"]
+GENERI     = ["Maschile", "Femminile"]
 DISCIPLINE = ["Strada", "Criterium", "Cronometro"]
 
 
-class GareGUI(tk.Tk):
-    def __init__(self):
-        super().__init__()
+# ── PARSING GPX ───────────────────────────────────────────────────────────────
 
-        self.title("Gestore Gare — Archivio Ciclistico")
-        self.geometry("900x700")
-        self.resizable(True, True)
+def parse_gpx(gpx_path: Path) -> dict:
+    """Estrae distanza (km) e dislivello positivo (m) dal file GPX."""
+    try:
+        tree = ET.parse(gpx_path)
+        root = tree.getroot()
+        ns = ''
+        if root.tag.startswith('{'):
+            ns = root.tag.split('}')[0] + '}'
 
-        style = ttk.Style()
-        style.theme_use('clam')
+        points = root.findall(f'.//{ns}trkpt')
+        if not points:
+            points = root.findall(f'.//{ns}rtept')
 
-        main_frame = ttk.Frame(self)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        if not points:
+            return {'distanza_km': None, 'dislivello_m': None}
 
-        # Titolo
-        title_frame = ttk.Frame(main_frame)
-        title_frame.pack(fill=tk.X, pady=(0, 15))
-        ttk.Label(title_frame, text="GESTORE GARE", font=("Arial", 16, "bold")).pack(side=tk.LEFT)
-
-        # Frame superiore: lista + pulsanti
-        top_frame = ttk.Frame(main_frame)
-        top_frame.pack(fill=tk.BOTH, expand=True)
-
-        # Lista gare
-        list_frame = ttk.Frame(top_frame)
-        list_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
-
-        ttk.Label(list_frame, text="Gare nel database:", font=("Arial", 10, "bold")).pack(anchor=tk.W)
-
-        scrollbar = ttk.Scrollbar(list_frame)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-        self.listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar.set, font=("Courier", 9), height=20)
-        self.listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        self.listbox.bind('<<ListboxSelect>>', self.on_gara_select)
-        scrollbar.config(command=self.listbox.yview)
-
-        # Pulsanti
-        btn_frame = ttk.Frame(top_frame)
-        btn_frame.pack(side=tk.RIGHT, fill=tk.Y)
-
-        self.btn_modifica = ttk.Button(btn_frame, text="Modifica", command=self.modifica_gara, width=15)
-        self.btn_modifica.pack(pady=5, fill=tk.X)
-
-        self.btn_elimina = ttk.Button(btn_frame, text="Elimina", command=self.elimina_gara, width=15)
-        self.btn_elimina.pack(pady=5, fill=tk.X)
-
-        ttk.Button(btn_frame, text="Rigenera da GPX", command=self.rigenera_gpx, width=15).pack(pady=5, fill=tk.X)
-
-        ttk.Separator(btn_frame, orient='horizontal').pack(pady=10, fill=tk.X)
-
-        ttk.Button(btn_frame, text="Aggiorna lista", command=self.carica_gare, width=15).pack(pady=5, fill=tk.X)
-        ttk.Button(btn_frame, text="Pubblica (git push)", command=self.git_push, width=15).pack(pady=5, fill=tk.X)
-
-        # Info gara
-        info_frame = ttk.LabelFrame(main_frame, text="Dettagli gara selezionata", padding=10)
-        info_frame.pack(fill=tk.X, pady=(15, 0))
-
-        self.info_text = tk.Text(info_frame, height=8, font=("Courier", 9), state=tk.DISABLED)
-        self.info_text.pack(fill=tk.BOTH, expand=True)
-
-        self.gare_list = []
-        self.carica_gare()
-
-        self.btn_modifica.config(state=tk.DISABLED)
-        self.btn_elimina.config(state=tk.DISABLED)
-
-    def carica_gare(self):
-        """Carica la lista di gare da disco."""
-        self.listbox.delete(0, tk.END)
-        self.gare_list = []
-
-        json_files = sorted(GARE_SORGENTI_DIR.glob("*.json"))
-        json_files = [f for f in json_files if f.name != "_ESEMPIO.json"]
-
-        if not json_files:
-            self.listbox.insert(tk.END, "[Nessuna gara nel database]")
-            self.info_text.config(state=tk.NORMAL)
-            self.info_text.delete(1.0, tk.END)
-            self.info_text.insert(tk.END, "Crea una nuova gara con:\npython generator/genera_report.py")
-            self.info_text.config(state=tk.DISABLED)
-            return
-
-        for filepath in json_files:
+        coords = []
+        for pt in points:
             try:
-                data = json.loads(filepath.read_text(encoding='utf-8'))
-                slug     = data.get('slug', '?')
-                titolo   = data.get('titolo', '?')
-                data_g   = data.get('data', '?')
-                categoria = data.get('categoria', '?')
-                self.listbox.insert(tk.END, f"[{slug}] {titolo} ({data_g}) - {categoria}")
-                self.gare_list.append((filepath, data))
-            except Exception as e:
-                print(f"Errore lettura {filepath}: {e}")
+                lat = float(pt.get('lat'))
+                lon = float(pt.get('lon'))
+                ele_el = pt.find(f'{ns}ele')
+                ele = float(ele_el.text) if ele_el is not None else None
+                coords.append((lat, lon, ele))
+            except (TypeError, ValueError):
+                continue
 
-    def on_gara_select(self, event):
-        """Mostra dettagli gara selezionata."""
-        selection = self.listbox.curselection()
-        if not selection:
-            return
-        idx = selection[0]
-        if idx >= len(self.gare_list):
-            return
+        if not coords:
+            return {'distanza_km': None, 'dislivello_m': None}
 
-        filepath, data = self.gare_list[idx]
-        self.btn_modifica.config(state=tk.NORMAL)
-        self.btn_elimina.config(state=tk.NORMAL)
+        def haversine(lat1, lon1, lat2, lon2):
+            R = 6371000
+            φ1, φ2 = math.radians(lat1), math.radians(lat2)
+            dφ = math.radians(lat2 - lat1)
+            dλ = math.radians(lon2 - lon1)
+            a = math.sin(dφ/2)**2 + math.cos(φ1)*math.cos(φ2)*math.sin(dλ/2)**2
+            return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
 
-        info = (
-            f"TITOLO:        {data.get('titolo', '-')}\n"
-            f"SLUG:          {data.get('slug', '-')}\n"
-            f"DATA:          {data.get('data', '-')}\n"
-            f"GENERE:        {data.get('genere', '-')}\n"
-            f"CATEGORIA:     {data.get('categoria', '-')}\n"
-            f"DISCIPLINA:    {data.get('disciplina', '-')}\n"
-            f"DISTANZA:      {data.get('distanza_km', '-')} km\n"
-            f"DISLIVELLO:    {data.get('dislivello_m', '-')} m\n"
-            f"LUOGO:         {data.get('luogo', '-')}\n"
-            f"TEMPO:         {data.get('tempo', '-')}\n"
-        )
-        self.info_text.config(state=tk.NORMAL)
-        self.info_text.delete(1.0, tk.END)
-        self.info_text.insert(tk.END, info)
-        self.info_text.config(state=tk.DISABLED)
-
-    def get_selected_gara(self):
-        """Ritorna la gara selezionata o None."""
-        selection = self.listbox.curselection()
-        if not selection:
-            messagebox.showwarning("Attenzione", "Seleziona una gara.")
-            return None
-        idx = selection[0]
-        if idx >= len(self.gare_list):
-            return None
-        return self.gare_list[idx]
-
-    def modifica_gara(self):
-        result = self.get_selected_gara()
-        if result:
-            EditWindow(self, result[0], result[1], self.carica_gare)
-
-    def elimina_gara(self):
-        result = self.get_selected_gara()
-        if result is None:
-            return
-
-        filepath, data = result
-        slug   = data.get('slug', filepath.stem)
-        titolo = data.get('titolo', slug)
-
-        msg = (
-            f"Stai per eliminare:\n  {titolo}\n  (slug: {slug})\n\n"
-            f"Verranno eliminati:\n"
-            f"  - gare-sorgenti/{filepath.name}\n"
-            f"  - public/gare/{slug}.html\n\nProcedi?"
+        dist_m = sum(
+            haversine(coords[i][0], coords[i][1], coords[i+1][0], coords[i+1][1])
+            for i in range(len(coords)-1)
         )
 
-        if messagebox.askyesno("Eliminare gara?", msg):
-            try:
-                filepath.unlink()
-                html_path = GARE_PUBLIC_DIR / f"{slug}.html"
-                if html_path.exists():
-                    html_path.unlink()
+        # Smoothing quote con media mobile (finestra 5) per ridurre rumore GPS
+        eles_raw = [c[2] for c in coords if c[2] is not None]
+        w = 5
+        eles = []
+        for i in range(len(eles_raw)):
+            start = max(0, i - w // 2)
+            end   = min(len(eles_raw), i + w // 2 + 1)
+            eles.append(sum(eles_raw[start:end]) / (end - start))
 
-                messagebox.showinfo("Successo", f"Gara '{titolo}' eliminata.")
-                self.carica_gare()
+        d_plus = 0.0
+        for i in range(1, len(eles)):
+            diff = eles[i] - eles[i-1]
+            if diff > 0:
+                d_plus += diff
 
-                if messagebox.askyesno("Pubblicare?", "Fare git push per aggiornare il sito?"):
-                    self.git_push(commit_msg=f"Elimina gara: {titolo}")
+        # Punto centrale per il geocoding
+        mid = coords[len(coords) // 2]
+        center_lat, center_lon = mid[0], mid[1]
 
-            except Exception as e:
-                messagebox.showerror("Errore", f"Errore durante eliminazione:\n{e}")
+        return {
+            'distanza_km': round(dist_m / 1000, 2),
+            'dislivello_m': round(d_plus) if d_plus > 0 else None,
+            'center_lat':   center_lat,
+            'center_lon':   center_lon,
+        }
 
-    def rigenera_gpx(self):
-        """Apre finestra di selezione GPX e lancia genera_report.py."""
-        gpx_file = filedialog.askopenfilename(
-            parent=self,
-            title="Seleziona file GPX",
+    except Exception as e:
+        print(f"  Avviso: impossibile leggere dati dal GPX ({e})")
+        return {'distanza_km': None, 'dislivello_m': None, 'center_lat': None, 'center_lon': None}
+
+
+# ── REVERSE GEOCODING ─────────────────────────────────────────────────────────
+
+def reverse_geocode(lat: float, lon: float) -> str | None:
+    """
+    Ritorna 'Provincia, Regione, IT' tramite Nominatim (OpenStreetMap).
+    Nessuna API key richiesta. Ritorna None se offline o in caso di errore.
+    """
+    import urllib.request
+    import urllib.parse
+    import json as _json
+
+    try:
+        params = urllib.parse.urlencode({
+            "lat": round(lat, 5),
+            "lon": round(lon, 5),
+            "format": "json",
+            "zoom": 8,          # livello regione/provincia
+            "addressdetails": 1,
+        })
+        url = f"https://nominatim.openstreetmap.org/reverse?{params}"
+        req = urllib.request.Request(url, headers={"User-Agent": "race-db-archivio/1.0"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = _json.loads(resp.read())
+
+        addr = data.get("address", {})
+
+        # Provincia (county o city)
+        provincia = (
+            addr.get("county") or
+            addr.get("city") or
+            addr.get("town") or
+            addr.get("village") or
+            ""
+        )
+        # Rimuovi suffissi tipo "Provincia di Varese" → "Varese"
+        for prefix in ("Provincia di ", "Province of ", "Distretto di "):
+            if provincia.startswith(prefix):
+                provincia = provincia[len(prefix):]
+
+        # Stato abbreviato
+        country_code = addr.get("country_code", "").upper()  # "IT", "FR", "BE"...
+
+        parts = [p for p in [provincia, country_code] if p]
+        return ", ".join(parts) if parts else None
+
+    except Exception:
+        return None
+
+
+
+# ── SLUG ─────────────────────────────────────────────────────────────────────
+
+def slugify(s: str) -> str:
+    import unicodedata
+    s = unicodedata.normalize('NFD', s)
+    s = ''.join(c for c in s if unicodedata.category(c) != 'Mn')
+    s = s.lower()
+    s = re.sub(r'[^a-z0-9]+', '-', s)
+    return s.strip('-')
+
+
+# ── CALENDARIO POPUP ─────────────────────────────────────────────────────────
+
+def _show_calendar(parent, target_entry, BG, ACCENT, FG):
+    """Mini calendario popup. Scrive la data selezionata in target_entry."""
+    import tkinter as tk
+    import calendar as cal_mod
+    from datetime import date as date_cls
+
+    # Leggi data iniziale dall'entry
+    try:
+        parts = target_entry.get().split("-")
+        cur_year, cur_month = int(parts[0]), int(parts[1])
+    except Exception:
+        today = date_cls.today()
+        cur_year, cur_month = today.year, today.month
+
+    top = tk.Toplevel(parent)
+    top.title("Seleziona data")
+    top.resizable(False, False)
+    top.attributes("-topmost", True)
+    top.configure(bg=BG)
+    top.grab_set()
+
+    state = {"year": cur_year, "month": cur_month}
+
+    # ── header navigazione ──
+    nav = tk.Frame(top, bg=BG)
+    nav.pack(fill="x", padx=10, pady=(10,4))
+
+    lbl_month = tk.Label(nav, text="", font=("Helvetica", 11, "bold"),
+                         bg=BG, fg=FG, width=16)
+    lbl_month.pack(side="left", expand=True)
+
+    def prev_month():
+        if state["month"] == 1:
+            state["month"] = 12; state["year"] -= 1
+        else:
+            state["month"] -= 1
+        refresh()
+
+    def next_month():
+        if state["month"] == 12:
+            state["month"] = 1; state["year"] += 1
+        else:
+            state["month"] += 1
+        refresh()
+
+    tk.Button(nav, text="◀", font=("Helvetica", 10), bg=BG, fg=FG,
+              relief="flat", bd=0, cursor="hand2",
+              command=prev_month).pack(side="left")
+    tk.Button(nav, text="▶", font=("Helvetica", 10), bg=BG, fg=FG,
+              relief="flat", bd=0, cursor="hand2",
+              command=next_month).pack(side="right")
+
+    # ── griglia giorni ──
+    grid_frame = tk.Frame(top, bg=BG)
+    grid_frame.pack(padx=10, pady=(0,10))
+
+    GIORNI = ["Lu", "Ma", "Me", "Gi", "Ve", "Sa", "Do"]
+    for col, g in enumerate(GIORNI):
+        tk.Label(grid_frame, text=g, font=("Helvetica", 9, "bold"),
+                 bg=BG, fg="#7a746b", width=3).grid(row=0, column=col, pady=(0,4))
+
+    day_buttons = []
+
+    def refresh():
+        for btn in day_buttons:
+            btn.destroy()
+        day_buttons.clear()
+
+        y, m = state["year"], state["month"]
+        lbl_month.config(text=f"{cal_mod.month_name[m]} {y}")
+
+        # Prima cella: weekday del 1° del mese (0=lun)
+        first_wd = cal_mod.weekday(y, m, 1)
+        days_in_month = cal_mod.monthrange(y, m)[1]
+        today = date_cls.today()
+
+        cell = 0
+        for blank in range(first_wd):
+            tk.Label(grid_frame, text="", bg=BG, width=3).grid(
+                row=1 + cell // 7, column=cell % 7)
+            cell += 1
+
+        for day in range(1, days_in_month + 1):
+            d = day
+            is_today = (y == today.year and m == today.month and d == today.day)
+            bg_col = ACCENT if is_today else BG
+            fg_col = "white" if is_today else FG
+
+            btn = tk.Button(
+                grid_frame, text=str(d), font=("Helvetica", 10),
+                bg=bg_col, fg=fg_col, relief="flat", bd=0,
+                width=3, cursor="hand2",
+                activebackground=ACCENT, activeforeground="white",
+            )
+            btn.config(command=lambda dd=d: select_day(dd))
+            btn.grid(row=1 + cell // 7, column=cell % 7, pady=1)
+            day_buttons.append(btn)
+            cell += 1
+
+    def select_day(day):
+        chosen = f"{state['year']:04d}-{state['month']:02d}-{day:02d}"
+        target_entry.delete(0, "end")
+        target_entry.insert(0, chosen)
+        top.destroy()
+
+    refresh()
+
+
+# ── DIALOG METADATI ───────────────────────────────────────────────────────────
+
+def ask_metadata(default_title: str, gpx_path_initial: Path, gpx_data: dict, luogo_iniziale: str = "") -> tuple | None:
+    """Ritorna (meta_dict, gpx_path) oppure None se annullato."""
+    import tkinter as tk
+    from tkinter import ttk, messagebox, filedialog
+
+    result = {}
+    # gpx_path è mutabile dentro la closure tramite lista
+    current_gpx = [gpx_path_initial]
+
+    root = tk.Tk()
+    root.title("Aggiungi al database gare")
+    root.resizable(False, False)
+    root.attributes('-topmost', True)
+
+    BG = "#f5f2ed"; FG = "#0f0f0f"; ACCENT = "#d4401a"
+    FONT_LABEL = ("Helvetica", 10, "bold")
+    FONT_ENTRY = ("Helvetica", 11)
+
+    root.configure(bg=BG)
+
+    tk.Frame(root, bg=ACCENT, height=4).pack(fill="x")
+
+    # Header con nome GPX e bottone cambio
+    header_frame = tk.Frame(root, bg=BG, padx=24)
+    header_frame.pack(fill="x", pady=(8, 0))
+
+    gpx_label = tk.Label(header_frame,
+                         text=f"GPX: {gpx_path_initial.name}",
+                         font=("Helvetica", 9), bg=BG, fg="#7a746b", anchor="w")
+    gpx_label.pack(side="left")
+
+    def cambia_gpx():
+        new_path = filedialog.askopenfilename(
+            parent=root,
+            title="Seleziona nuovo file GPX",
             filetypes=[("GPX files", "*.gpx"), ("All files", "*.*")]
         )
-        if not gpx_file:
+        if not new_path:
+            return
+        new_path = Path(new_path)
+        current_gpx[0] = new_path
+        gpx_label.config(text=f"GPX: {new_path.name}")
+
+        # Rileggi distanza e dislivello
+        new_data = parse_gpx(new_path)
+        nonlocal raw_km, raw_d
+        raw_km = new_data.get("distanza_km")
+        raw_d  = new_data.get("dislivello_m")
+
+        # Aggiorna campi km e D+
+        g = 1
+        try: g = int(giri_var.get())
+        except: pass
+        e_km.delete(0, tk.END)
+        if raw_km: e_km.insert(0, str(round(raw_km * g, 2)))
+        e_dp.delete(0, tk.END)
+        if raw_d: e_dp.insert(0, str(round(raw_d * g)))
+
+        # Aggiorna luogo tramite geocoding
+        lat = new_data.get("center_lat")
+        lon = new_data.get("center_lon")
+        if lat and lon:
+            luogo = reverse_geocode(lat, lon)
+            if luogo:
+                e_luogo.delete(0, tk.END)
+                e_luogo.insert(0, luogo)
+
+        # Aggiorna titolo/slug solo se non modificati manualmente
+        if not slug_manual.get():
+            e_titolo.delete(0, tk.END)
+            e_titolo.insert(0, new_path.stem)
+            update_slug()
+
+    tk.Button(header_frame, text="↺ Cambia GPX", font=("Helvetica", 9),
+              bg="#ede9e2", fg="#7a746b", relief="flat", bd=0,
+              padx=8, pady=3, cursor="hand2",
+              command=cambia_gpx).pack(side="right")
+
+    tk.Label(root, text="Aggiungi percorso al database",
+             font=("Helvetica", 13, "bold"), bg=BG, fg=FG, pady=8).pack()
+
+    frame = tk.Frame(root, bg=BG, padx=24, pady=4)
+    frame.pack(fill="both")
+    frame.grid_columnconfigure(0, weight=1)
+
+    def lbl(text, row_n):
+        tk.Label(frame, text=text, font=FONT_LABEL, bg=BG, fg="#7a746b",
+                 anchor="w").grid(row=row_n*2, column=0, columnspan=2,
+                                  sticky="w", pady=(10,1))
+
+    def ent(row_n, val=""):
+        e = tk.Entry(frame, font=FONT_ENTRY, bg="white", fg=FG, relief="solid", bd=1)
+        e.grid(row=row_n*2+1, column=0, columnspan=2, sticky="ew")
+        if val: e.insert(0, str(val))
+        return e
+
+    def cmb(row_n, values, default=0):
+        c = ttk.Combobox(frame, values=values, state="readonly", font=FONT_ENTRY)
+        c.grid(row=row_n*2+1, column=0, columnspan=2, sticky="ew")
+        c.current(default)
+        return c
+
+    def make_date_field(row_n, initial_val):
+        """Entry data + bottone calendario popup."""
+        f_row = tk.Frame(frame, bg=BG)
+        f_row.grid(row=row_n*2+1, column=0, columnspan=2, sticky="ew")
+        f_row.grid_columnconfigure(0, weight=1)
+        e = tk.Entry(f_row, font=FONT_ENTRY, bg="white", fg=FG, relief="solid", bd=1)
+        e.grid(row=0, column=0, sticky="ew")
+        e.insert(0, initial_val)
+
+        def open_cal():
+            _show_calendar(root, e, BG, ACCENT, FG)
+
+        tk.Button(f_row, text="📅", font=("Helvetica", 11), bg=BG, fg=FG,
+                  relief="flat", bd=0, cursor="hand2",
+                  command=open_cal).grid(row=0, column=1, padx=(4,0))
+        return e
+
+    lbl("Nome gara *", 0);       e_titolo   = ent(0, default_title)
+    lbl("Slug URL *", 1);        e_slug     = ent(1)
+    lbl("Data (AAAA-MM-GG) *",2);e_data     = make_date_field(2, date.today().isoformat())
+    lbl("Genere *", 3);          cb_genere  = cmb(3, GENERI, default=GENERI.index("Femminile"))
+    lbl("Categoria *", 4);       cb_cat     = cmb(4, CATEGORIE, default=CATEGORIE.index("Junior"))
+    lbl("Disciplina *", 5);      cb_disc    = cmb(5, DISCIPLINE)
+
+    # Auto-slug
+    slug_manual = tk.BooleanVar(value=False)
+    def update_slug(*_):
+        if not slug_manual.get():
+            e_slug.delete(0, tk.END)
+            e_slug.insert(0, slugify(e_titolo.get()))
+    e_titolo.bind("<KeyRelease>", update_slug)
+    e_slug.bind("<KeyPress>", lambda e: slug_manual.set(True))
+    update_slug()
+
+    # Seconda sezione: stats con giri
+    frame2 = tk.Frame(root, bg=BG, padx=24, pady=4)
+    frame2.pack(fill="both")
+    frame2.grid_columnconfigure(0, weight=1)
+    frame2.grid_columnconfigure(1, weight=1)
+    frame2.grid_columnconfigure(2, weight=1)
+
+    def lbl2(text, row_n, col, colspan=1):
+        tk.Label(frame2, text=text, font=FONT_LABEL, bg=BG, fg="#7a746b",
+                 anchor="w").grid(row=row_n*2, column=col, columnspan=colspan,
+                                  sticky="w", padx=(0,8), pady=(10,1))
+
+    def ent2(row_n, col, val="", colspan=1):
+        e = tk.Entry(frame2, font=FONT_ENTRY, bg="white", fg=FG, relief="solid", bd=1)
+        e.grid(row=row_n*2+1, column=col, columnspan=colspan, sticky="ew", padx=(0,8))
+        if val != "": e.insert(0, str(val))
+        return e
+
+    raw_km = gpx_data.get("distanza_km")
+    raw_d  = gpx_data.get("dislivello_m")
+
+    lbl2("Giri del circuito", 0, 0)
+    giri_var = tk.IntVar(value=1)
+    spin_giri = tk.Spinbox(frame2, from_=1, to=50, textvariable=giri_var,
+                           font=FONT_ENTRY, bg="white", fg=FG, relief="solid", bd=1, width=5)
+    spin_giri.grid(row=1, column=0, sticky="w", padx=(0,8))
+
+    lbl2("Distanza (km)", 0, 1)
+    e_km = ent2(0, 1, val=raw_km if raw_km else "")
+
+    lbl2("Dislivello (m D+)", 0, 2)
+    e_dp = ent2(0, 2, val=raw_d if raw_d else "")
+
+    def update_stats(*_):
+        try:
+            g = int(giri_var.get())
+        except:
+            return
+        if raw_km:
+            e_km.delete(0, tk.END)
+            e_km.insert(0, str(round(raw_km * g, 2)))
+        if raw_d:
+            e_dp.delete(0, tk.END)
+            e_dp.insert(0, str(round(raw_d * g)))
+
+    giri_var.trace_add("write", update_stats)
+
+    lbl2("Luogo / Regione", 1, 0, colspan=2)
+    e_luogo = ent2(1, 0, val=luogo_iniziale, colspan=2)
+
+    tk.Label(frame2, text="Note (opzionali)", font=FONT_LABEL, bg=BG, fg="#7a746b",
+             anchor="w").grid(row=4, column=0, columnspan=3, sticky="w", pady=(10,1))
+    e_note = tk.Text(frame2, font=FONT_ENTRY, bg="white", fg=FG,
+                     relief="solid", bd=1, height=3)
+    e_note.grid(row=5, column=0, columnspan=3, sticky="ew", pady=(0,4))
+
+    btn_frame = tk.Frame(root, bg=BG, padx=24, pady=16)
+    btn_frame.pack(fill="x")
+    cancelled = tk.BooleanVar(value=False)
+
+    def on_ok():
+        errors = []
+        if not e_titolo.get().strip(): errors.append("Nome gara obbligatorio")
+        if not e_slug.get().strip():   errors.append("Slug obbligatorio")
+        if not e_data.get().strip():   errors.append("Data obbligatoria")
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", e_data.get().strip()):
+            errors.append("Data nel formato AAAA-MM-GG")
+        if errors:
+            messagebox.showerror("Errore", "\n".join(errors), parent=root)
             return
 
-        gpx_path = Path(gpx_file)
+        def num_or_none(s):
+            try: return float(s.strip()) if s.strip() else None
+            except: return None
+
+        result.update({
+            "slug":         slugify(e_slug.get().strip()),
+            "titolo":       e_titolo.get().strip(),
+            "data":         e_data.get().strip(),
+            "genere":       cb_genere.get(),
+            "categoria":    cb_cat.get(),
+            "disciplina":   cb_disc.get(),
+            "distanza_km":  num_or_none(e_km.get()),
+            "dislivello_m": num_or_none(e_dp.get()),
+            "luogo":        e_luogo.get().strip() or None,
+            "note":         e_note.get("1.0", tk.END).strip() or None,
+        })
+        root.destroy()
+
+    def on_cancel():
+        cancelled.set(True)
+        root.destroy()
+
+    tk.Button(btn_frame, text="Annulla", font=("Helvetica", 11),
+              bg="#ede9e2", fg="#7a746b", relief="flat", bd=0,
+              padx=16, pady=8, cursor="hand2",
+              command=on_cancel).pack(side="right", padx=(8,0))
+
+    tk.Button(btn_frame, text="Aggiungi al database →", font=("Helvetica", 11, "bold"),
+              bg=ACCENT, fg="white", relief="flat", bd=0,
+              padx=16, pady=8, cursor="hand2",
+              command=on_ok).pack(side="right")
+
+    root.bind("<Return>", lambda e: on_ok())
+    root.bind("<Escape>", lambda e: on_cancel())
+    root.mainloop()
+
+    if cancelled.get() or not result:
+        return None
+    return result, current_gpx[0]
+
+
+
+# ── SELEZIONE FILE GPX ────────────────────────────────────────────────────────
+
+def pick_gpx_file():
+    import tkinter as tk
+    from tkinter import filedialog
+    root = tk.Tk(); root.withdraw(); root.attributes('-topmost', True)
+    path = filedialog.askopenfilename(
+        title='Seleziona file GPX',
+        filetypes=[('GPX files', '*.gpx'), ('All files', '*.*')]
+    )
+    root.destroy()
+    return Path(path) if path else None
+
+
+
+
+# ── MAIN ──────────────────────────────────────────────────────────────────────
+
+def main():
+    parser = argparse.ArgumentParser(description='Genera report HTML da GPX')
+    parser.add_argument('gpx', nargs='?', default=None, help='Path al file GPX')
+    args = parser.parse_args()
+
+    # 1. Seleziona GPX
+    if args.gpx:
+        gpx_path = Path(args.gpx)
         if not gpx_path.exists():
-            messagebox.showerror("Errore", "File non trovato.")
-            return
+            sys.exit(f"Errore: file GPX non trovato: {args.gpx}")
+    else:
+        gpx_path = pick_gpx_file()
+        if not gpx_path:
+            sys.exit("Nessun file selezionato.")
 
-        try:
-            result = subprocess.run(
-                [sys.executable, str(ARCHIVIO_DIR / "generator" / "genera_report.py"), str(gpx_path)],
-                cwd=ARCHIVIO_DIR,
-                capture_output=True,
-                text=True
-            )
-            if result.returncode == 0:
-                messagebox.showinfo("Successo", "Report generato con successo!")
-                self.carica_gare()
-            else:
-                messagebox.showerror("Errore", f"Errore durante generazione:\n{result.stdout}\n{result.stderr}")
-        except Exception as e:
-            messagebox.showerror("Errore", f"Errore durante esecuzione:\n{e}")
+    # 2. Leggi dati dal GPX
+    print(f"[*] Lettura GPX: {gpx_path.name}...")
+    gpx_data = parse_gpx(gpx_path)
+    if gpx_data['distanza_km']:
+        print(f"  Distanza rilevata: {gpx_data['distanza_km']} km")
+    if gpx_data['dislivello_m']:
+        print(f"  Dislivello rilevato: +{gpx_data['dislivello_m']} m")
 
-    def git_push(self, commit_msg: str = None):
-        """Esegue git add, commit e push."""
-        if commit_msg is None:
-            commit_msg = f"Aggiorna database gare ({datetime.now().strftime('%Y-%m-%d %H:%M')})"
+    # 2b. Geocoding luogo
+    luogo_auto = ""
+    lat = gpx_data.get("center_lat")
+    lon = gpx_data.get("center_lon")
+    if lat and lon:
+        print(f"[*] Geocoding ({lat:.4f}, {lon:.4f})...")
+        luogo_auto = reverse_geocode(lat, lon) or ""
+        if luogo_auto:
+            print(f"  Luogo rilevato: {luogo_auto}")
+        else:
+            print(f"  Geocoding non disponibile (offline?)")
 
-        try:
-            # git add .
-            r1 = subprocess.run(["git", "add", "."], cwd=ARCHIVIO_DIR,
-                                 capture_output=True, text=True)
-            if r1.returncode != 0:
-                messagebox.showerror("git add fallito", r1.stderr or r1.stdout)
-                return
+    # 3. Dialog metadati
+    res = ask_metadata(gpx_path.stem, gpx_path, gpx_data, luogo_iniziale=luogo_auto)
+    if res is None:
+        print("Annullato.")
+        sys.exit(0)
 
-            # Controlla se c'è qualcosa da committare
-            status = subprocess.run(["git", "status", "--porcelain"], cwd=ARCHIVIO_DIR,
-                                     capture_output=True, text=True)
-            if not status.stdout.strip():
-                messagebox.showinfo("Nessuna modifica", "Nessuna modifica da pubblicare.")
-                return
+    meta, gpx_path = res   # gpx_path può essere cambiato dall'utente
+    slug  = meta["slug"]
+    title = meta["titolo"]
 
-            # git commit
-            r2 = subprocess.run(["git", "commit", "-m", commit_msg], cwd=ARCHIVIO_DIR,
-                                  capture_output=True, text=True)
-            if r2.returncode != 0:
-                messagebox.showerror("git commit fallito", r2.stderr or r2.stdout)
-                return
+    # 4. Cartelle destinazione
+    out_gpx_dir  = ARCHIVIO_DIR / "public" / "gpx"
+    out_json_dir = ARCHIVIO_DIR / "gare-sorgenti"
+    out_gpx_dir.mkdir(parents=True, exist_ok=True)
+    out_json_dir.mkdir(parents=True, exist_ok=True)
 
-            # git push
-            r3 = subprocess.run(["git", "push"], cwd=ARCHIVIO_DIR,
-                                  capture_output=True, text=True)
-            if r3.returncode == 0:
-                messagebox.showinfo(
-                    "Pubblicato!",
-                    f"Push completato.\n\nCommit: {commit_msg}\n\n"
-                    f"GitHub Actions sta deployando...\n"
-                    f"https://github.com/il-bonvi/archivio-prototipo/actions"
-                )
-            else:
-                messagebox.showerror("git push fallito", r3.stderr or r3.stdout)
-
-        except FileNotFoundError:
-            messagebox.showerror("Errore", "git non trovato. Assicurati che git sia installato e nel PATH.")
-        except Exception as e:
-            messagebox.showerror("Errore", f"Errore durante git push:\n{e}")
+    json_path = out_json_dir / f"{slug}.json"
 
 
-class EditWindow(tk.Toplevel):
-    def __init__(self, parent, filepath, data, callback):
-        super().__init__(parent)
+    # 5. Avvisa se esiste già
+    if json_path.exists():
+        import tkinter as tk
+        from tkinter import messagebox
+        root = tk.Tk(); root.withdraw(); root.attributes('-topmost', True)
+        ok = messagebox.askyesno("File esistente",
+            f"Esiste già una gara con slug '{slug}'.\nVuoi sovrascriverla?")
+        root.destroy()
+        if not ok:
+            print("Operazione annullata.")
+            sys.exit(0)
 
-        self.title(f"Modifica: {data.get('titolo', filepath.stem)}")
-        self.geometry("500x600")
-        self.resizable(False, True)
+    # 6. Copia GPX in public/gpx/
+    import shutil
+    gpx_out = out_gpx_dir / f"{slug}.gpx"
+    shutil.copy2(gpx_path, gpx_out)
+    print(f"[OK] GPX   -> {gpx_out}")
 
-        self.filepath = filepath
-        self.data = data.copy()
-        self.callback = callback
+    # 7. Salva JSON (rimuovi None)
+    meta_clean = {k: v for k, v in meta.items() if v is not None}
+    json_path.write_text(json.dumps(meta_clean, ensure_ascii=False, indent=2), encoding='utf-8')
+    print(f"[OK] JSON  -> {json_path}")
 
-        main = ttk.Frame(self, padding=15)
-        main.pack(fill=tk.BOTH, expand=True)
+    print(f"\n[OK] Gara '{title}' aggiunta al database.")
+    print("  Per pubblicare sul sito:")
+    print(f"    git add .")
+    print(f"    git commit -m \"Aggiungi gara: {title}\"")
+    print(f"    git push")
 
-        self.fields = {}
-        row = 0
-
-        field_defs = [
-            ('titolo',       'Titolo gara *',       'text'),
-            ('data',         'Data (YYYY-MM-DD)',    'text'),
-            ('genere',       'Genere',               'combo', GENERI),
-            ('categoria',    'Categoria',            'combo', CATEGORIE),
-            ('disciplina',   'Disciplina',           'combo', DISCIPLINE),
-            ('distanza_km',  'Distanza (km)',        'text'),
-            ('dislivello_m', 'Dislivello (m)',       'text'),
-            ('luogo',        'Luogo',                'text'),
-            ('tempo',        'Tempo',                'text'),
-        ]
-
-        for field_data in field_defs:
-            key        = field_data[0]
-            label      = field_data[1]
-            field_type = field_data[2]
-
-            ttk.Label(main, text=label, font=("Arial", 9, "bold")).grid(
-                row=row, column=0, sticky=tk.W, pady=(10, 5))
-
-            if field_type == 'text':
-                entry = ttk.Entry(main, width=40)
-                entry.insert(0, str(self.data.get(key, '')))
-                entry.grid(row=row, column=1, sticky=tk.EW)
-                self.fields[key] = entry
-            elif field_type == 'combo':
-                values = field_data[3]
-                combo = ttk.Combobox(main, values=values, state='readonly', width=37)
-                combo.set(self.data.get(key, ''))
-                combo.grid(row=row, column=1, sticky=tk.EW)
-                self.fields[key] = combo
-
-            row += 1
-
-        main.columnconfigure(1, weight=1)
-
-        btn_frame = ttk.Frame(main)
-        btn_frame.grid(row=row, column=0, columnspan=2, pady=(20, 0), sticky=tk.EW)
-
-        ttk.Button(btn_frame, text="Salva", command=self.salva).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="Annulla", command=self.destroy).pack(side=tk.LEFT, padx=5)
-
-    def salva(self):
-        try:
-            for key, widget in self.fields.items():
-                value = widget.get().strip()
-                if value:
-                    if key == 'distanza_km':
-                        self.data[key] = float(value)
-                    elif key == 'dislivello_m':
-                        self.data[key] = int(value)
-                    else:
-                        self.data[key] = value
-                else:
-                    self.data.pop(key, None)
-
-            self.filepath.write_text(
-                json.dumps(self.data, ensure_ascii=False, indent=2),
-                encoding='utf-8'
-            )
-
-            messagebox.showinfo("Successo", "Modifiche salvate!")
-            self.callback()
-            self.destroy()
-
-        except Exception as e:
-            messagebox.showerror("Errore", f"Errore durante salvataggio:\n{e}")
+    # 8. Popup finale
+    try:
+        import tkinter as tk
+        from tkinter import messagebox
+        root = tk.Tk(); root.withdraw(); root.attributes('-topmost', True)
+        msg = (
+            f'"{title}" aggiunta al database!\n\n'
+            f'File creati:\n'
+            f'  public/gare/{slug}.html\n'
+            f'  gare-sorgenti/{slug}.json\n\n'
+            f'Per pubblicare sul sito:\n'
+            f'  git add .\n'
+            f'  git commit -m "Aggiungi gara: {title}"\n'
+            f'  git push'
+        )
+        messagebox.showinfo("Database aggiornato!", msg)
+        root.destroy()
+    except Exception:
+        pass
 
 
 if __name__ == '__main__':
-    GARE_SORGENTI_DIR.mkdir(parents=True, exist_ok=True)
-    GARE_PUBLIC_DIR.mkdir(parents=True, exist_ok=True)
-    app = GareGUI()
-    app.mainloop()
+    main()
