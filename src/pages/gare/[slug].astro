@@ -1,5 +1,8 @@
 ---
+import Base from '../../layouts/Base.astro';
 import { formatData, formatDistanza, formatDislivello, categoriaColor } from '../../lib/gare.js';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 
 export async function getStaticPaths() {
   const garaFiles = import.meta.glob('../../../gare-sorgenti/*.json', { eager: true });
@@ -16,6 +19,37 @@ const garaFiles = import.meta.glob('../../../gare-sorgenti/*.json', { eager: tru
 const gara = Object.values(garaFiles).map(m => m.default ?? m).find(g => g.slug === slug);
 if (!gara) return Astro.redirect('/');
 
+// Leggi il template HTML
+let templateHtml = '';
+let gpxScript = '';
+
+try {
+  const templatePath = resolve('./generator/index.html');
+  templateHtml = readFileSync(templatePath, 'utf-8');
+  
+  // Estrai il GPX dal file generato se disponibile
+  try {
+    const reportPath = resolve('./dist/gare/' + slug + '.html');
+    const reportContent = readFileSync(reportPath, 'utf-8');
+    const gpxMatch = reportContent.match(/<!--GPXREPORT_START-->[\s\S]*?<!--GPXREPORT_END-->/);
+    if (gpxMatch) {
+      gpxScript = gpxMatch[0];
+    }
+  } catch (e) {
+    console.warn('Report HTML non trovato per ' + slug);
+  }
+  
+  // Rimuovi doctype e html tags per usarlo inline
+  templateHtml = templateHtml
+    .replace(/<!DOCTYPE[^>]*>/i, '')
+    .replace(/<html[^>]*>/i, '')
+    .replace(/<\/html>/i, '')
+    .replace(/<head[^>]*>[\s\S]*?<\/head>/i, ''); // Rimuovi <head> per evitare duplicati
+} catch (e) {
+  console.warn('Template non trovato');
+  templateHtml = '';
+}
+
 const color = categoriaColor(gara.categoria);
 ---
 
@@ -28,6 +62,13 @@ const color = categoriaColor(gara.categoria);
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Barlow:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/@raruto/leaflet-elevation@2.2.5/dist/leaflet-elevation.css" />
+  <script src="https://unpkg.com/@raruto/leaflet-elevation@2.2.5/dist/leaflet-elevation.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
   <style>
     :root {
       --bg:     #f5f2ed;
@@ -92,7 +133,7 @@ const color = categoriaColor(gara.categoria);
     .bstat-v { font-family: var(--font-mono); font-size: 0.82rem; font-weight: 500; color: var(--text); line-height: 1; }
     .bstat-l { font-family: var(--font-mono); font-size: 0.55rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text3); }
 
-    .report-frame { width: 100%; border: none; display: block; height: calc(100vh - 52px); }
+    .report-content { flex: 1; overflow: auto; }
 
     @media (max-width: 600px) {
       .bar-stats { display: none; }
@@ -130,6 +171,8 @@ const color = categoriaColor(gara.categoria);
     </div>
   </div>
 
-  <iframe class="report-frame" src={`/gare/${slug}.html`} title={gara.titolo}></iframe>
+  <div class="report-content" set:html={templateHtml}></div>
+  
+  {gpxScript && <script set:html={gpxScript} />}
 </body>
 </html>
