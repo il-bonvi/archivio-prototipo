@@ -7,7 +7,7 @@
     
     
     
-    <title>gpx-report</title>
+    <title>Schijndel</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -188,7 +188,7 @@
         }
         
         #data-content {
-            display: none;
+            display: block;
         }
 
         /* Climb Detection Styles */
@@ -649,7 +649,19 @@
     <div id="app-layout">
     <div id="main-content">
     <div class="container">
-        <div id="upload-section" class="upload-section">
+<div id="report-title-bar" style="
+    text-align:center;
+    padding: 18px 24px 10px;
+    font-family: 'Inter', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #111827;
+    letter-spacing: -0.02em;
+    border-bottom: 2px solid #fc5200;
+    margin-bottom: 0;
+">Schijndel</div>
+
+        <div id="upload-section" class="upload-section" style="display:none!important">
             <div class="upload-zone" id="uploadZone">
                 <div style="font-size: 3rem; margin-bottom: 1rem;">📁</div>
                 <div style="font-size: 1.1rem; font-weight: 500; margin-bottom: 0.5rem;">Carica file GPX</div>
@@ -759,19 +771,8 @@
                 </div>
             </div>
         </div>
-        <div id="reset-bar" style="display:none;text-align:center;padding:8px 0 4px;gap:8px;justify-content:center;align-items:center;">
-            <button id="reset-btn" onclick="resetApp()" style="
-                background:none;border:1px solid #d1d5db;color:#6b7280;
-                padding:5px 14px;border-radius:20px;font-size:0.75rem;
-                font-family:'Inter',sans-serif;cursor:pointer;
-                transition:all 0.2s;
-            " onmouseover="this.style.borderColor='#fc5200';this.style.color='#fc5200'"
-               onmouseout="this.style.borderColor='#d1d5db';this.style.color='#6b7280'">
-                ↩ Carica nuovo GPX
-            </button>
-
-        </div>
-        <p class="sv-hint">👆 Premi il tasto destro sulla mappa o sull'altimetria per esplorare il punto in Street View. Attenzione, l'orientamento potrebbe essere errato.</p>
+        
+        <p class="sv-hint" style="display:none">👆 Premi il tasto destro sulla mappa o sull'altimetria per esplorare il punto in Street View. Attenzione, l'orientamento potrebbe essere errato.</p>
         <footer>
             <a href="https://linktr.ee/bonvicin.coaching" target="_blank">
                 &copy; 2026 Andrea Bonvicin &mdash; gpx-visualizer &mdash; Licenza MIT
@@ -1026,7 +1027,7 @@ let map;
             uploadSection.style.display = 'none';
             dataContent.style.display = 'block';
             const rb = document.getElementById('reset-bar');
-            if (rb) rb.style.display = 'flex';
+            // report: reset-bar rimosso
             
             setTimeout(() => {
                 initMap(gpxText);
@@ -2506,7 +2507,7 @@ let map;
             // Reset UI
             document.getElementById('data-content').style.display = 'none';
             document.getElementById('upload-section').style.display = 'block';
-            document.getElementById('reset-bar').style.display = 'none';
+            // report: reset-bar rimosso
             document.getElementById('sv-panel').classList.remove('open');
             document.getElementById('elevation-chart').innerHTML = '';
             document.getElementById('climbs-section').style.display = 'none';
@@ -2514,5 +2515,17 @@ let map;
             document.getElementById('fileInput').value = '';
         }
     </script>
+<!--GPXREPORT_START-->
+<script>
+(function(){
+    var GPX_B64 = "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPGdweCBjcmVhdG9yPSJTdHJhdmFHUFgiIHZlcnNpb249IjEuMSIgeG1sbnM9Imh0dHA6Ly93d3cudG9wb2dyYWZpeC5jb20vR1BYLzEvMSIgeG1sbnM6eHNpPSJodHRwOi8vd3d3LnczLm9yZy8yMDAxL1hNTFNjaGVtYS1pbnN0YW5jZSIgeHNpOnNjaGVtYUxvY2F0aW9uPSJodHRwOi8vd3d3LnRvcG9ncmFmaXguY29tL0dQWC8xLzEgaHR0cDovL3d3dy50b3BvZ3JhZml4LmNvbS9HUFgvMS8xL2dweC54c2QiPgogPG1ldGFkYXRhPgogIDxuYW1lPlNjaGlqbmRlbDwvbmFtZT4KICA8YXV0aG9yPgogICA8bmFtZT5BbmRyZWEgQm9udmljaW48L25hbWU+CiAgIDxsaW5rIGhyZWY9Imh0dHBzOi8vd3d3LnN0cmF2YS5jb20vYXRobGV0ZXMvMzM4MzAxMzEiLz4KICA8L2F1dGhvcj4KICA8Y29weXJpZ2h0IGF1dGhvcj0iT3BlblN0cmVldE1hcCBjb250cmlidXRvcnMiPgogICA8eWVhcj4yMDIwPC95ZWFyPgogICA8bGljZW5zZT5odHRwczovL3d3dy5vcGVuc3RyZWV0bWFwLm9yZy9jb3B5cmlnaHQ8L2xpY2Vuc2U+CiAgPC9jb3B5cmlnaHQ+CiAgPGxpbmsgaHJlZj0iaHR0cHM6Ly93d3cuc3RyYXZhLmNvbS9yb3V0ZXMvMzQ2MDM2MjkwNzAwNzM3NDE5NiIvPgogPC9tZXRhZGF0YT4KIDx0cms+CiAgPG5hbWU+U2NoaWpuZGVsPC9uYW1lPgogIDxsaW5rIGhyZWY9Imh0dHBzOi8vd3d3LnN0cmF2YS5jb20vcm91dGVzLzM0NjAzNjI5MDcwMDczNzQxOTYiLz4KICA8dHlwZT5jeWNsaW5nPC90eXBlPgogIDx0cmtzZWc+CiAgIDx0cmtwdCBsYXQ9IjUxLjYwNzEzMDAwMDAwMDAwNSIgbG9uPSI1LjQ2Nzc4Ij4KICAgIDxlbGU+OC40NTAwMDAwMDAwMDAwMDE8L2VsZT4KICAgPC90cmtwdD4KICAgPHRya3B0IGxhdD0iNTEuNjA3NyIgbG9uPSI1LjQ2NjkxIj4KICAgIDxlbGU+OC43MzwvZWxlPgogICA8L3Rya3B0PgogICA8dHJrcHQgbGF0PSI1MS42MDc3NSIgbG9uPSI1LjQ2Njc3Ij4KICAgIDxlbGU+OC43NjwvZWxlPgogICA8L3Rya3B0PgogICA8dHJrcHQgbGF0PSI1MS42MDc3NyIgbG9uPSI1LjQ2NjYzIj4KICAgIDxlbGU+OC43NzwvZWxlPgogICA8L3Rya3B0PgogICA8dHJrcHQgbGF0PSI1MS42MDc3NDAwMDgyNzAzMiIgbG9uPSI1LjQ2NTY0MzMzMjAyMjk2MyI+CiAgICA8ZWxlPjkuMDI8L2VsZT4KICAgPC90cmtwdD4KICAgPHRya3B0IGxhdD0iNTEuNjA3NzEwMDA4MjcwMTEiIGxvbj0iNS40NjQ2NTY2NjUzNDk3MjgiPgogICAgPGVsZT45LjMyPC9lbGU+CiAgIDwvdHJrcHQ+CiAgIDx0cmtwdCBsYXQ9IjUxLjYwNzY4IiBsb249IjUuNDYzNjcwMDAwMDAwMDAwNSI+CiAgICA8ZWxlPjEwLjQzPC9lbGU+CiAgIDwvdHJrcHQ+CiAgIDx0cmtwdCBsYXQ9IjUxLjYwNzY1MDAwMDAwMDAxIiBsb249IjUuNDYzNTYiPgogICAgPGVsZT4xMC4zMzwvZWxlPgogICA8L3Rya3B0PgogICA8dHJrcHQgbGF0PSI1MS42MDczNDAwMDAwMDAwMSIgbG9uPSI1LjQ2MzA2MDAwMDAwMDAwMDUiPgogICAgPGVsZT4xMC4yNjwvZWxlPgogICA8L3Rya3B0PgogICA8dHJrcHQgbGF0PSI1MS42MDc2MjAwMDAwMDAwMDQiIGxvbj0iNS40NjI2MTAwMDAwMDAwMDEiPgogICAgPGVsZT45LjUzPC9lbGU+CiAgIDwvdHJrcHQ+CiAgIDx0cmtwdCBsYXQ9IjUxLjYwNzY2IiBsb249IjUuNDYyNDUwMDAwMDAwMDAwNSI+CiAgICA8ZWxlPjkuNDMwMDAwMDAwMDAwMDAxPC9lbGU+CiAgIDwvdHJrcHQ+CiAgIDx0cmtwdCBsYXQ9IjUxLjYwNzY0MDAwNDAzNjA2NCIgbG9uPSI1LjQ2MTQ3NDk5OTQ3Mzg3NCI+CiAgICA8ZWxlPjkuNTkwMDAwMDAwMDAwMDAyPC9lbGU+CiAgIDwvdHJrcHQ+CiAgIDx0cmtwdCBsYXQ9IjUxLjYwNzYyMDAwMDAwMDAwNCIgbG9uPSI1LjQ2MDUwMDAwMDAwMDAwMSI+CiAgICA8ZWxlPjEwLjM3MDAwMDAwMDAwMDAwMTwvZWxlPgogICA8L3Rya3B0PgogICA8dHJrcHQgbGF0PSI1MS42MDc2MjAwMDAwMDAwMDQiIGxvbj0iNS40NjA0OSI+CiAgICA8ZWxlPjEwLjM4PC9lbGU+CiAgIDwvdHJrcHQ+CiAgIDx0cmtwdCBsYXQ9IjUxLjYwNzM4MDAwMDAwMDAwNiIgbG9uPSI1LjQ2MDUyMDAwMDAwMDAwMSI+CiAgICA8ZWxlPjEwLjQyPC9lbGU+CiAgIDwvdHJrcHQ+CiAgIDx0cmtwdCBsYXQ9IjUxLjYwNzMiIGxvbj0iNS40NjA1NzAwMDAwMDAwMDEiPgogICAgPGVsZT4xMC40MjwvZWxlPgogICA8L3Rya3B0PgogICA8dHJrcHQgbGF0PSI1MS42MDY4MTUwMDI2NzA2OSIgbG9uPSI1LjQ2MTM1NTAwODI5OTg4NiI+CiAgICA8ZWxlPjEwLjAxMDAwMDAwMDAwMDAwMjwvZWxlPgogICA8L3Rya3B0PgogICA8dHJrcHQgbGF0PSI1MS42MDYzMzAwMDAwMDAwMSIgbG9uPSI1LjQ2MjE0MDAwMDAwMDAwMSI+CiAgICA8ZWxlPjEwLjU0MDAwMDAwMDAwMDAwMTwvZWxlPgogICA8L3Rya3B0PgogICA8dHJrcHQgbGF0PSI1MS42MDU2OTI1MTI1NDQ4MyIgbG9uPSI1LjQ2MzEzMjU0MTgxOTkiPgogICAgPGVsZT45Ljc2MDAwMDAwMDAwMDAwMjwvZWxlPgogICA8L3Rya3B0PgogICA8dHJrcHQgbGF0PSI1MS42MDUwNTUwMTY3MjA0NiIgbG9uPSI1LjQ2NDEyNTA1NTc2ODAzMSI+CiAgICA8ZWxlPjkuNjU8L2VsZT4KICAgPC90cmtwdD4KICAgPHRya3B0IGxhdD0iNTEuNjA0NDE3NTEyNTI3MzEiIGxvbj0iNS40NjUxMTc1NDE4NDU0NTEiPgogICAgPGVsZT45LjY2PC9lbGU+CiAgIDwvdHJrcHQ+CiAgIDx0cmtwdCBsYXQ9IjUxLjYwMzc4MDAwMDAwMDAxIiBsb249IjUuNDY2MTEwMDAwMDAwMDAwNSI+CiAgICA8ZWxlPjEwLjI5MDAwMDAwMDAwMDAwMTwvZWxlPgogICA8L3Rya3B0PgogICA8dHJrcHQgbGF0PSI1MS42MDM2MyIgbG9uPSI1LjQ2NjI2Ij4KICAgIDxlbGU+MTAuODE8L2VsZT4KICAgPC90cmtwdD4KICAgPHRya3B0IGxhdD0iNTEuNjAzNTMwMDAwMDAwMDA2IiBsb249IjUuNDY2MzEwMDAwMDAwMDAxIj4KICAgIDxlbGU+MTAuODE8L2VsZT4KICAgPC90cmtwdD4KICAgPHRya3B0IGxhdD0iNTEuNjAzNjIwMDAwMDAwMDEiIGxvbj0iNS40NjY1NCI+CiAgICA8ZWxlPjEwLjg3MDAwMDAwMDAwMDAwMTwvZWxlPgogICA8L3Rya3B0PgogICA8dHJrcHQgbGF0PSI1MS42MDM2MjAwMDAwMDAwMSIgbG9uPSI1LjQ2NjYyMDAwMDAwMDAwMSI+CiAgICA8ZWxlPjEwLjg3MDAwMDAwMDAwMDAwMTwvZWxlPgogICA8L3Rya3B0PgogICA8dHJrcHQgbGF0PSI1MS42MDM1OTAwMDAwMDAwMDQiIGxvbj0iNS40NjY3NDAwMDAwMDAwMDEiPgogICAgPGVsZT4xMC44NjAwMDAwMDAwMDAwMDE8L2VsZT4KICAgPC90cmtwdD4KICAgPHRya3B0IGxhdD0iNTEuNjAzNDkiIGxvbj0iNS40NjY4NyI+CiAgICA8ZWxlPjEwLjgxPC9lbGU+CiAgIDwvdHJrcHQ+CiAgIDx0cmtwdCBsYXQ9IjUxLjYwMzQyMDAwMDAwMDAxIiBsb249IjUuNDY2OTMwMDAwMDAwMDAwNSI+CiAgICA8ZWxlPjEwLjc0PC9lbGU+CiAgIDwvdHJrcHQ+CiAgIDx0cmtwdCBsYXQ9IjUxLjYwMzI4MDAwMDAwMDAwNSIgbG9uPSI1LjQ2Njk4Ij4KICAgIDxlbGU+MTAuNTU8L2VsZT4KICAgPC90cmtwdD4KICAgPHRya3B0IGxhdD0iNTEuNjAzMTkwMDAwMDAwMDA1IiBsb249IjUuNDY3MDQwMDAwMDAwMDAxIj4KICAgIDxlbGU+MTAuNDk8L2VsZT4KICAgPC90cmtwdD4KICAgPHRya3B0IGxhdD0iNTEuNjAzMTIwMDAwMDAwMDA0IiBsb249IjUuNDY3MTMiPgogICAgPGVsZT4xMC40NTAwMDAwMDAwMDAwMDE8L2VsZT4KICAgPC90cmtwdD4KICAgPHRya3B0IGxhdD0iNTEuNjAyNjY1MDAyMjA3IiBsb249IjUuNDY3ODQ1MDA3MTA4OTkiPgogICAgPGVsZT4xMC41NDAwMDAwMDAwMDAwMDE8L2VsZT4KICAgPC90cmtwdD4KICAgPHRya3B0IGxhdD0iNTEuNjAyMjEwMDAwMDAwMDEiIGxvbj0iNS40Njg1NiI+CiAgICA8ZWxlPjEwLjk5MDAwMDAwMDAwMDAwMjwvZWxlPgogICA8L3Rya3B0PgogICA8dHJrcHQgbGF0PSI1MS42MDE2ODgwMTEzNzI2OSIgbG9uPSI1LjQ2OTM3ODAzNzYwODQxMyI+CiAgICA8ZWxlPjEwLjk0PC9lbGU+CiAgIDwvdHJrcHQ+CiAgIDx0cmtwdCBsYXQ9IjUxLjYwMTE2NjAxNzA2MDExIiBsb249IjUuNDcwMTk2MDU2NDA5OTUzIj4KICAgIDxlbGU+MTAuODcwMDAwMDAwMDAwMDAxPC9lbGU+CiAgIDwvdHJrcHQ+CiAgIDx0cmtwdCBsYXQ9IjUxLjYwMDY0NDAxNzA2MjU0IiBsb249IjUuNDcxMDE0MDU2NDA1MTk4Ij4KICAgIDxlbGU+MTAuOTkwMDAwMDAwMDAwMDAyPC9lbGU+CiAgIDwvdHJrcHQ+CiAgIDx0cmtwdCBsYXQ9IjUxLjYwMDEyMjAxMTM4MDE5IiBsb249IjUuNDcxODMyMDM3NTk0NzI4Ij4KICAgIDxlbGU+MTAuOTY8L2VsZT4KICAgPC90cmtwdD4KICAgPHRya3B0IGxhdD0iNTEuNTk5NiIgbG9uPSI1LjQ3MjY1MDAwMDAwMDAwMSI+CiAgICA8ZWxlPjExLjIyPC9lbGU+CiAgIDwvdHJrcHQ+CiAgIDx0cmtwdCBsYXQ9IjUxLjYwMDE1NTAxMDkxOTQ3IiBsb249IjUuNDczNTc0OTY2MTEwOTE0Ij4KICAgIDxlbGU+OS40MTwvZWxlPgogICA8L3Rya3B0PgogICA8dHJrcHQgbGF0PSI1MS42MDA3MTAwMTQ1Njk4NTYiIGxvbj0iNS40NzQ0OTk5NTQ4MzEzMjIiPgogICAgPGVsZT45Ljc5PC9lbGU+CiAgIDwvdHJrcHQ+CiAgIDx0cmtwdCBsYXQ9IjUxLjYwMTI2NTAxMDk1MDgzIiBsb249IjUuNDc1NDI0OTY2MTYxOTMyIj4KICAgIDxlbGU+MTAuMjU8L2VsZT4KICAgPC90cmtwdD4KICAgPHRya3B0IGxhdD0iNTEuNjAxODIwMDAwMDAwMDA0IiBsb249IjUuNDc2MzUiPgogICAgPGVsZT4xMC45NTAwMDAwMDAwMDAwMDE8L2VsZT4KICAgPC90cmtwdD4KICAgPHRya3B0IGxhdD0iNTEuNjAxOTIwMDAwMDAwMDEiIGxvbj0iNS40NzY0MTAwMDAwMDAwMDA0Ij4KICAgIDxlbGU+MTEuMDMwMDAwMDAwMDAwMDAxPC9lbGU+CiAgIDwvdHJrcHQ+CiAgIDx0cmtwdCBsYXQ9IjUxLjYwMTk0MDAwMDAwMDAwNiIgbG9uPSI1LjQ3NjMxMDAwMDAwMDAwMSI+CiAgICA8ZWxlPjEwLjU3PC9lbGU+CiAgIDwvdHJrcHQ+CiAgIDx0cmtwdCBsYXQ9IjUxLjYwMjAwMDAwMDAwMDAwNCIgbG9uPSI1LjQ3NjIxIj4KICAgIDxlbGU+MTAuNTc8L2VsZT4KICAgPC90cmtwdD4KICAgPHRya3B0IGxhdD0iNTEuNjAyNjI1MDEyMjM2OTA2IiBsb249IjUuNDc1MjMwMDQwNDcwMTk1Ij4KICAgIDxlbGU+OC4xODAwMDAwMDAwMDAwMDE8L2VsZT4KICAgPC90cmtwdD4KICAgPHRya3B0IGxhdD0iNTEuNjAzMjUwMDE2MzE0OCIgbG9uPSI1LjQ3NDI1MDA1Mzk2MzAzOCI+CiAgICA8ZWxlPjguNjM8L2VsZT4KICAgPC90cmtwdD4KICAgPHRya3B0IGxhdD0iNTEuNjAzODc1MDEyMjMzMjYiIGxvbj0iNS40NzMyNzAwNDA0Nzc1MzMiPgogICAgPGVsZT45LjYxPC9lbGU+CiAgIDwvdHJrcHQ+CiAgIDx0cmtwdCBsYXQ9IjUxLjYwNDUiIGxvbj0iNS40NzIyOSI+CiAgICA8ZWxlPjEwLjkyPC9lbGU+CiAgIDwvdHJrcHQ+CiAgIDx0cmtwdCBsYXQ9IjUxLjYwNDgwNTAwMTMxMjM0IiBsb249IjUuNDcxNzQwMDAzNjQ1MjUzIj4KICAgIDxlbGU+MTAuNjc8L2VsZT4KICAgPC90cmtwdD4KICAgPHRya3B0IGxhdD0iNTEuNjA1MTEiIGxvbj0iNS40NzExOTAwMDAwMDAwMDEiPgogICAgPGVsZT4xMC44MjAwMDAwMDAwMDAwMDI8L2VsZT4KICAgPC90cmtwdD4KICAgPHRya3B0IGxhdD0iNTEuNjA1MjEwMDAwMDAwMDEiIGxvbj0iNS40NzEwNCI+CiAgICA8ZWxlPjEwLjgzPC9lbGU+CiAgIDwvdHJrcHQ+CiAgIDx0cmtwdCBsYXQ9IjUxLjYwNTY2NTAwMjM3Njk3IiBsb249IjUuNDcxNzc0OTkyNzY3MDE2Ij4KICAgIDxlbGU+OS44OTwvZWxlPgogICA8L3Rya3B0PgogICA8dHJrcHQgbGF0PSI1MS42MDYxMjAwMDAwMDAwMDQiIGxvbj0iNS40NzI1MTAwMDAwMDAwMDEiPgogICAgPGVsZT4xMC43ODAwMDAwMDAwMDAwMDE8L2VsZT4KICAgPC90cmtwdD4KICAgPHRya3B0IGxhdD0iNTEuNjA2NTg2NjcxNDAxODciIGxvbj0iNS40NzE3NjMzNDg2ODQ3NjMiPgogICAgPGVsZT4xMC41MTwvZWxlPgogICA8L3Rya3B0PgogICA8dHJrcHQgbGF0PSI1MS42MDcwNTMzMzgwNjc0NDUiIGxvbj0iNS40NzEwMTY2ODIwMjAwODUiPgogICAgPGVsZT4xMC4yMzwvZWxlPgogICA8L3Rya3B0PgogICA8dHJrcHQgbGF0PSI1MS42MDc1MiIgbG9uPSI1LjQ3MDI3Ij4KICAgIDxlbGU+MTAuMjcwMDAwMDAwMDAwMDAxPC9lbGU+CiAgIDwvdHJrcHQ+CiAgIDx0cmtwdCBsYXQ9IjUxLjYwNzAzMDAwMjcxMjI2NCIgbG9uPSI1LjQ2OTQ3OTk5MTU3MjM5MSI+CiAgICA8ZWxlPjEwLjE1PC9lbGU+CiAgIDwvdHJrcHQ+CiAgIDx0cmtwdCBsYXQ9IjUxLjYwNjU0IiBsb249IjUuNDY4NjkwMDAwMDAwMDAwNSI+CiAgICA8ZWxlPjEwLjE3PC9lbGU+CiAgIDwvdHJrcHQ+CiAgIDx0cmtwdCBsYXQ9IjUxLjYwNzExMDAwMDAwMDAwNiIgbG9uPSI1LjQ2NzgxIj4KICAgIDxlbGU+OC40NTAwMDAwMDAwMDAwMDE8L2VsZT4KICAgPC90cmtwdD4KICA8L3Rya3NlZz4KIDwvdHJrPgo8L2dweD4K";
+    var GPX_NAME = "Schijndel.gpx";
+    var gpxText = decodeURIComponent(escape(atob(GPX_B64)));
+    window._gpxRawText = gpxText;
+    window._gpxFileName = GPX_NAME;
+    if (typeof parseGPX === 'function') parseGPX(gpxText);
+})();
+</script>
+<!--GPXREPORT_END-->
 </body>
 </html>
