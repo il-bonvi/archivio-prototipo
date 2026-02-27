@@ -104,8 +104,8 @@ def main():
     """Genera tutti i report HTML dai JSON"""
     
     json_dir = ARCHIVIO_DIR / 'gare-sorgenti'
-    # Scrivi direttamente in dist/ per evitare problemi di copia
-    html_dir = ARCHIVIO_DIR / 'dist' / 'gare'
+    # Genera i file in public/ così Astro li copia automaticamente in dist/
+    html_dir = ARCHIVIO_DIR / 'public' / 'gare'
     template_path = Path(__file__).parent / 'index.html'
     
     if not json_dir.exists():
