@@ -28,8 +28,8 @@ from pathlib import Path
 from datetime import date
 
 # ── CONFIGURAZIONE ───────────────────────────────────────────────────────────
-# Cartella dell'archivio Astro. Di default: stessa cartella di questo script.
-ARCHIVIO_DIR = Path(__file__).parent
+# Cartella dell'archivio Astro. Torna indietro di una cartella da /generator
+ARCHIVIO_DIR = Path(__file__).parent.parent
 # ─────────────────────────────────────────────────────────────────────────────
 
 AUTOLOAD_TEMPLATE = """<!--GPXREPORT_START-->

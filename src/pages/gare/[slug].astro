@@ -1,6 +1,9 @@
 ---
+import { formatData, formatDistanza, formatDislivello, categoriaColor } from '../../lib/gare.js';
+
 export async function getStaticPaths() {
   const garaFiles = import.meta.glob('../../../gare-sorgenti/*.json', { eager: true });
+  // @ts-ignore
   return Object.values(garaFiles).map(m => {
     const data = m.default ?? m;
     return { params: { slug: data.slug } };
@@ -9,10 +12,10 @@ export async function getStaticPaths() {
 
 const { slug } = Astro.params;
 const garaFiles = import.meta.glob('../../../gare-sorgenti/*.json', { eager: true });
+// @ts-ignore
 const gara = Object.values(garaFiles).map(m => m.default ?? m).find(g => g.slug === slug);
 if (!gara) return Astro.redirect('/');
 
-import { formatData, formatDistanza, formatDislivello, categoriaColor } from '../../lib/gare.js';
 const color = categoriaColor(gara.categoria);
 ---
 
@@ -38,8 +41,18 @@ const color = categoriaColor(gara.categoria);
       --font-body:    'Barlow', sans-serif;
       --font-mono:    'DM Mono', monospace;
     }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); -webkit-font-smoothing: antialiased; }
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-body);
+      -webkit-font-smoothing: antialiased;
+    }
 
     .top-bar {
       position: sticky; top: 0; z-index: 100;
@@ -89,10 +102,10 @@ const color = categoriaColor(gara.categoria);
   </style>
 </head>
 <body>
-  <div class="top-bar" style={`--cat-color: ${color}`}>
+  <div class="top-bar" style={{ "--cat-color": color }}>
     <a href="/" class="back">← Race DB</a>
     <div class="bar-divider"></div>
-    <span class="bar-cat" style={`color: ${color}`}>{gara.categoria} {gara.genere === 'Femminile' ? '♀' : '♂'} · {gara.disciplina}</span>
+    <span class="bar-cat" style={{ color: color }}>{gara.categoria} {gara.genere === 'Femminile' ? '♀' : '♂'} · {gara.disciplina}</span>
     <div class="bar-divider"></div>
     <span class="bar-title">{gara.titolo}</span>
     <div class="bar-stats">
