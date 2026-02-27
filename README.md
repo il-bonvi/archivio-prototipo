@@ -1,6 +1,8 @@
 # Race Database — Percorsi Ciclistici
 
-Archivio professionale di percorsi ciclistici. Costruito con [Astro](https://astro.build), deployato con Netlify Drop.
+Archivio professionale di percorsi ciclistici. Costruito con [Astro](https://astro.build), deployato su GitHub Pages.
+
+🔗 **Live:** https://il-bonvi.github.io/archivio-prototipo
 
 ---
 
@@ -8,7 +10,7 @@ Archivio professionale di percorsi ciclistici. Costruito con [Astro](https://ast
 
 ### 1. Prerequisiti
 - [Node.js](https://nodejs.org) v18+
-- Account [Netlify](https://netlify.com) gratuito
+- Account GitHub con la repo `archivio-prototipo`
 
 ### 2. Installa e testa in locale
 ```bash
@@ -17,50 +19,63 @@ npm run dev
 # → http://localhost:4321
 ```
 
+### 3. Abilita GitHub Pages
+1. Vai su **Settings → Pages** della repo
+2. Sotto *Source* seleziona **GitHub Actions**
+3. Salva
+
+Da questo momento, ogni push su `main` triggera il deploy automatico.
+
 ---
 
 ## Come aggiungere una gara
 
 ### 1. Genera il report HTML
 ```bash
-python genera_report.py mia_gara.gpx
-# inserisci il titolo nel dialog → genera es. Stelvio_2024.html
+python generator/genera_report.py mia_gara.gpx
+# inserisci il titolo nel dialog → genera es. stelvio-2024.html
 ```
 
-### 2. Copia l'HTML in `/public/gare/`
-```
-public/gare/stelvio-2024.html
-```
-⚠️ Usa slug kebab-case: minuscolo, trattini, niente spazi.
+Lo script in automatico:
+- genera `public/gare/<slug>.html`
+- crea `gare-sorgenti/<slug>.json`
+- esegue `npm run build`
 
-### 3. Crea il JSON in `/gare-sorgenti/`
-Crea `gare-sorgenti/stelvio-2024.json`:
-```json
-{
-  "slug": "stelvio-2024",
-  "titolo": "Stelvio Bike Day 2024",
-  "data": "2024-08-10",
-  "genere": "Maschile",
-  "categoria": "Elite",
-  "disciplina": "Strada",
-  "distanza_km": 87.5,
-  "dislivello_m": 2760,
-  "luogo": "Alto Adige, IT",
-  "tempo": "5h14m"
-}
-```
-
-### 4. Builda
+### 2. Committa e pusha
 ```bash
-npm run build
+git add .
+git commit -m "Aggiungi gara: Stelvio 2024"
+git push
 ```
 
-### 5. Deploya su Netlify
-1. Vai su [app.netlify.com/drop](https://app.netlify.com/drop)
-2. Trascina la cartella `dist/` nel browser
-3. Online in 30 secondi
+GitHub Actions builda e deploya in automatico. Il sito è aggiornato in ~1 minuto.
 
-Per aggiornare il sito: ripeti dal punto 4.
+---
+
+## Struttura del progetto
+
+```
+archivio-prototipo/
+├── .github/
+│   └── workflows/
+│       └── deploy.yml        ← GitHub Actions (build + deploy)
+├── gare-sorgenti/            ← un JSON per gara (metadati)
+├── public/gare/              ← un HTML per gara (report)
+├── generator/
+│   ├── index.html            ← template report
+│   ├── genera_report.py      ← genera singola gara da GPX
+│   ├── build_all_reports.py  ← rigenera tutti gli HTML
+│   └── gestisci_gare_gui.py  ← GUI gestione gare
+├── src/
+│   ├── pages/
+│   │   ├── index.astro
+│   │   └── gare/[slug].astro
+│   ├── components/GaraCard.astro
+│   ├── layouts/Base.astro
+│   └── lib/gare.js
+├── astro.config.mjs
+└── package.json
+```
 
 ---
 
@@ -74,18 +89,13 @@ Per aggiornare il sito: ripeti dal punto 4.
 
 ---
 
-## Struttura del progetto
+## Sviluppo locale
 
+```bash
+npm run dev        # avvia dev server → http://localhost:4321
+npm run build      # build completa (genera HTML + Astro)
+npm run preview    # anteprima della build
 ```
-gare-archivio/
-├── gare-sorgenti/       ← un JSON per gara (metadati)
-├── public/gare/         ← un HTML per gara (report)
-├── src/
-│   ├── pages/
-│   │   ├── index.astro
-│   │   └── gare/[slug].astro
-│   ├── components/GaraCard.astro
-│   ├── layouts/Base.astro
-│   └── lib/gare.js
-└── package.json
-```
+
+> **Nota:** in locale i path funzionano senza il prefisso `/archivio-prototipo` perché
+> `BASE_URL` è `/` in dev. Il prefisso viene applicato solo nella build di produzione.

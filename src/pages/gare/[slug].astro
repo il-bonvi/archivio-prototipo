@@ -14,7 +14,8 @@ const { slug } = Astro.params;
 const garaFiles = import.meta.glob('../../../gare-sorgenti/*.json', { eager: true });
 // @ts-ignore
 const gara = Object.values(garaFiles).map(m => m.default ?? m).find(g => g.slug === slug);
-if (!gara) return Astro.redirect('/');
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+if (!gara) return Astro.redirect(`${base}/`);
 
 const color = categoriaColor(gara.categoria);
 ---
@@ -106,7 +107,7 @@ const color = categoriaColor(gara.categoria);
 </head>
 <body>
   <div class="top-bar" style={{ "--cat-color": color }}>
-    <a href="/" class="back">← Race DB</a>
+    <a href={`${base}/`} class="back">← Race DB</a>
     <div class="bar-divider"></div>
     <span class="bar-cat" style={{ color: color }}>{gara.categoria} {gara.genere === 'Femminile' ? '♀' : '♂'} · {gara.disciplina}</span>
     <div class="bar-divider"></div>
@@ -133,6 +134,6 @@ const color = categoriaColor(gara.categoria);
     </div>
   </div>
 
-  <iframe class="report-frame" src={`/gare/${slug}.html`} title={gara.titolo}></iframe>
+  <iframe class="report-frame" src={`${base}/gare/${slug}.html`} title={gara.titolo}></iframe>
 </body>
 </html>
