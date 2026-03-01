@@ -1,13 +1,16 @@
 {
-  "slug": "cittiglio",
+  "slug": "cittiglio-2026",
   "titolo": "Cittiglio",
   "data": "2026-03-15",
   "genere": "Femminile",
   "categoria": "Junior",
   "disciplina": "Strada",
+  "giri": 1,
   "distanza_km": 74.25,
   "dislivello_m": 1002.0,
+  "velocita_media_kmh": 25.0,
   "luogo": "Varese, IT",
+  "race_series": "Cittiglio",
   "gpx_points": [
     {
       "lat": 46.00141,
@@ -8104,7 +8107,5 @@
       "lon": 8.67356,
       "ele": 255.7
     }
-  ],
-  "giri": 1,
-  "velocita_media_kmh": "36.5"
+  ]
 }

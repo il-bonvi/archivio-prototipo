@@ -28,6 +28,48 @@ ARCHIVIO_DIR = Path(__file__).parent.parent
 GARE_DIR = ARCHIVIO_DIR / "gare-sorgenti"
 GARE_DIR.mkdir(parents=True, exist_ok=True)
 
+
+# ── AUTO-UPDATE INDICE GARE ──────────────────────────────────────────────────
+
+def update_gares_index():
+    """Genera automaticamente gare-index.json per la navigazione tra serie."""
+    races = []
+    
+    # Scansiona tutti i file JSON
+    for json_file in sorted(GARE_DIR.glob("*.json")):
+        try:
+            with open(json_file, 'r', encoding='utf-8') as f:
+                gara = json.load(f)
+            
+            slug = gara.get("slug")
+            if not slug:
+                continue
+            
+            # Estrai l'anno dalla data (formato AAAA-MM-GG)
+            data_str = gara.get("data", "")
+            year = data_str.split("-")[0] if data_str else "unknown"
+            
+            races.append({
+                "slug": slug,
+                "titolo": gara.get("titolo"),
+                "data": data_str,
+                "year": year,
+                "race_series": gara.get("race_series"),
+            })
+            
+        except Exception:
+            continue
+    
+    # Salva l'index
+    index_path = ARCHIVIO_DIR / "public" / "gare-index.json"
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    try:
+        with open(index_path, 'w', encoding='utf-8') as f:
+            json.dump(races, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
+
 CATEGORIE = ["Elite", "U23", "Junior", "Allievi"]
 GENERI = ["Maschile", "Femminile"]
 DISCIPLINE = ["Strada", "Criterium", "Cronometro"]
@@ -53,6 +95,10 @@ def load_all_races():
 
 def save_race(slug: str, data: dict):
     """Salva race JSON in entrambe le location"""
+    # Imposta race_series automaticamente dal titolo
+    if 'titolo' in data:
+        data['race_series'] = data['titolo']
+    
     json_path = GARE_DIR / f"{slug}.json"
     data_clean = {k: v for k, v in data.items() if v is not None}
     json_str = json.dumps(data_clean, ensure_ascii=False, indent=2)
@@ -62,6 +108,9 @@ def save_race(slug: str, data: dict):
     public_json_dir = ARCHIVIO_DIR / "public" / "gare-sorgenti"
     public_json_dir.mkdir(parents=True, exist_ok=True)
     (public_json_dir / f"{slug}.json").write_text(json_str, encoding='utf-8')
+    
+    # Aggiorna l'indice per la navigazione tra serie
+    update_gares_index()
 
 
 def delete_race(slug: str):
@@ -73,6 +122,9 @@ def delete_race(slug: str):
     public_json_path = ARCHIVIO_DIR / "public" / "gare-sorgenti" / f"{slug}.json"
     if public_json_path.exists():
         public_json_path.unlink()
+    
+    # Aggiorna l'indice per la navigazione tra serie
+    update_gares_index()
 
 
 # ── MAIN GUI ──────────────────────────────────────────────────────────────────

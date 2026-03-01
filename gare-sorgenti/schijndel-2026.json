@@ -1,5 +1,5 @@
 {
-  "slug": "schijndel",
+  "slug": "schijndel-2026",
   "titolo": "Schijndel",
   "data": "2026-03-01",
   "genere": "Femminile",
@@ -8,7 +8,9 @@
   "giri": 15,
   "distanza_km": 49.65,
   "dislivello_m": 75.0,
+  "velocita_media_kmh": 25.0,
   "luogo": "NL",
+  "race_series": "Schijndel",
   "gpx_points": [
     {
       "lat": 51.60713,
@@ -315,6 +317,5 @@
       "lon": 5.46781,
       "ele": 8.5
     }
-  ],
-  "velocita_media_kmh": "40"
+  ]
 }
