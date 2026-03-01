@@ -85,6 +85,30 @@ archivio-prototipo/
 
 ---
 
+## Gestione Gare
+
+### Aggiungere una gara
+```bash
+python generator/genera_report.py                  # Seleziona GPX con dialog
+python generator/genera_report.py /path/to/race.gpx # Specifica il file
+```
+- Estrae automaticamente distanza, dislivello, punti GPS
+- Chiede metadati: titolo, slug, data, categoria, genere, disciplina, luogo
+- Crea JSON in `gare-sorgenti/` e `public/gare-sorgenti/`
+
+### Visualizzare, modificare, elimare gare
+```bash
+python generator/gestisci_gare_gui.py
+```
+Apre **UI grafica completa**:
+- 📋 Elenco di tutte le gare nel database
+- 👁️ Visualizza dettagli (metadati + numero punti GPX)
+- ✏️ Modifica metadati (titolo, data, categoria, etc)
+- 🗑️ Elimina una gara
+- ➕ Aggiungi nuova gara (richiama `genera_report.py`)
+
+---
+
 ## Valori validi per i campi JSON
 
 | Campo | Valori |

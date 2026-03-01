@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
-genera_report.py — Aggiunge gare al database JSON, leggendo dati da file GPX.
+genera_report.py — Aggiungi nuova race al database da file GPX.
 
 Uso:
     python generator/genera_report.py                  # dialog interattivo con selezione file
     python generator/genera_report.py percorso.gpx     # salta selezione, usa il file indicato
+
+Per GESTIRE (list, edit, delete) le gare, usa:
+    python generator/gestisci_gare.py              # UI completa per gestione database
 
 Lo script:
   1. Seleziona file GPX (da dialogo o riga di comando)
