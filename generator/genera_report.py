@@ -493,6 +493,9 @@ def ask_metadata(default_title: str, gpx_path_initial: Path, gpx_data: dict, luo
     lbl2("Luogo / Regione", 1, 0, colspan=2)
     e_luogo = ent2(1, 0, val=luogo_iniziale, colspan=2)
 
+    lbl2("Velocità media prevista (km/h)", 2, 0, colspan=1)
+    e_velocita = ent2(2, 0, val="25")
+
     tk.Label(frame2, text="Note (opzionali)", font=FONT_LABEL, bg=BG, fg="#7a746b",
              anchor="w").grid(row=4, column=0, columnspan=3, sticky="w", pady=(10,1))
     e_note = tk.Text(frame2, font=FONT_ENTRY, bg="white", fg=FG,
@@ -525,8 +528,10 @@ def ask_metadata(default_title: str, gpx_path_initial: Path, gpx_data: dict, luo
             "genere":       cb_genere.get(),
             "categoria":    cb_cat.get(),
             "disciplina":   cb_disc.get(),
+            "giri":         int(giri_var.get()),
             "distanza_km":  num_or_none(e_km.get()),
             "dislivello_m": num_or_none(e_dp.get()),
+            "velocita_media_kmh": num_or_none(e_velocita.get()),
             "luogo":        e_luogo.get().strip() or None,
             "note":         e_note.get("1.0", tk.END).strip() or None,
         })
