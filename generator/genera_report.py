@@ -1,19 +1,24 @@
 #!/usr/bin/env python3
 """
-genera_report.py — Genera report HTML da GPX e lo aggiunge all'archivio Astro.
+genera_report.py — Aggiunge gare al database JSON, leggendo dati da file GPX.
 
 Uso:
-    python generator/genera_report.py                  # dialog grafico completo
-    python generator/genera_report.py percorso.gpx     # salta selezione file
+    python generator/genera_report.py                  # dialog interattivo con selezione file
+    python generator/genera_report.py percorso.gpx     # salta selezione, usa il file indicato
 
 Lo script:
-  1. Chiede di selezionare il file GPX
-  2. Legge distanza e dislivello direttamente dal GPX
-  3. Mostra form con tutti i metadati precompilati
-  4. Genera HTML → public/gare/<slug>.html
-  5. Crea JSON → gare-sorgenti/<slug>.json
+  1. Seleziona file GPX (da dialogo o riga di comando)
+  2. Estrae distanza, dislivello, punti GPS dal GPX
+  3. Mostra form interattivo per compilare metadati (titolo, slug, data, etc)
+  4. Crea JSON → gare-sorgenti/<slug>.json (database Astro)
+  5. Copia JSON → public/gare-sorgenti/<slug>.json (servito al browser per gara.html)
 
-  Per pubblicare sul sito:
+Visualizzazione:
+  La gara viene visualizzata in /gare/<slug>/ con:
+  - Top-bar Astro (navigazione, metadati)
+  - Iframe che carica /gara.html?gara=<slug> (HTML originale con mappa, altimetria, Street View)
+
+Pubblicazione:
     git add .
     git commit -m "Aggiungi gara: <titolo>"
     git push
@@ -23,7 +28,6 @@ import sys
 import re
 import json
 import math
-import base64
 import argparse
 import subprocess
 import xml.etree.ElementTree as ET
@@ -46,7 +50,7 @@ DISCIPLINE = ["Strada", "Criterium", "Cronometro"]
 # ── PARSING GPX ───────────────────────────────────────────────────────────────
 
 def parse_gpx(gpx_path: Path) -> dict:
-    """Estrae distanza (km) e dislivello positivo (m) dal file GPX."""
+    """Estrae distanza (km), dislivello positivo (m) e punti GPX dal file GPX."""
     try:
         tree = ET.parse(gpx_path)
         root = tree.getroot()
@@ -59,21 +63,28 @@ def parse_gpx(gpx_path: Path) -> dict:
             points = root.findall(f'.//{ns}rtept')
 
         if not points:
-            return {'distanza_km': None, 'dislivello_m': None}
+            return {'distanza_km': None, 'dislivello_m': None, 'gpx_points': None}
 
         coords = []
+        gpx_points = []  # Punti per il JSON
         for pt in points:
             try:
                 lat = float(pt.get('lat'))
                 lon = float(pt.get('lon'))
                 ele_el = pt.find(f'{ns}ele')
-                ele = float(ele_el.text) if ele_el is not None else None
+                ele = float(ele_el.text) if ele_el is not None else 0
                 coords.append((lat, lon, ele))
+                # Salva punti per il JSON (arrotondati per ridurre dimensione)
+                gpx_points.append({
+                    'lat': round(lat, 6),
+                    'lon': round(lon, 6),
+                    'ele': round(ele, 1)
+                })
             except (TypeError, ValueError):
                 continue
 
         if not coords:
-            return {'distanza_km': None, 'dislivello_m': None}
+            return {'distanza_km': None, 'dislivello_m': None, 'gpx_points': None}
 
         def haversine(lat1, lon1, lat2, lon2):
             R = 6371000
@@ -112,11 +123,12 @@ def parse_gpx(gpx_path: Path) -> dict:
             'dislivello_m': round(d_plus) if d_plus > 0 else None,
             'center_lat':   center_lat,
             'center_lon':   center_lon,
+            'gpx_points':   gpx_points,
         }
 
     except Exception as e:
         print(f"  Avviso: impossibile leggere dati dal GPX ({e})")
-        return {'distanza_km': None, 'dislivello_m': None, 'center_lat': None, 'center_lon': None}
+        return {'distanza_km': None, 'dislivello_m': None, 'center_lat': None, 'center_lon': None, 'gpx_points': None}
 
 
 # ── REVERSE GEOCODING ─────────────────────────────────────────────────────────
@@ -604,10 +616,14 @@ def main():
     slug  = meta["slug"]
     title = meta["titolo"]
 
+    # 3b. Riprocessa GPX se è stato cambiato
+    print(f"[*] Processing GPX finale: {gpx_path.name}...")
+    gpx_data = parse_gpx(gpx_path)
+    if gpx_data.get('gpx_points'):
+        print(f"  {len(gpx_data['gpx_points'])} punti estratti")
+
     # 4. Cartelle destinazione
-    out_gpx_dir  = ARCHIVIO_DIR / "public" / "gpx"
     out_json_dir = ARCHIVIO_DIR / "gare-sorgenti"
-    out_gpx_dir.mkdir(parents=True, exist_ok=True)
     out_json_dir.mkdir(parents=True, exist_ok=True)
 
     json_path = out_json_dir / f"{slug}.json"
@@ -625,16 +641,22 @@ def main():
             print("Operazione annullata.")
             sys.exit(0)
 
-    # 6. Copia GPX in public/gpx/
-    import shutil
-    gpx_out = out_gpx_dir / f"{slug}.gpx"
-    shutil.copy2(gpx_path, gpx_out)
-    print(f"[OK] GPX   -> {gpx_out}")
+    # 6. Aggiungi dati GPX ai metadati
+    if gpx_data.get('gpx_points'):
+        meta['gpx_points'] = gpx_data['gpx_points']
 
     # 7. Salva JSON (rimuovi None)
     meta_clean = {k: v for k, v in meta.items() if v is not None}
-    json_path.write_text(json.dumps(meta_clean, ensure_ascii=False, indent=2), encoding='utf-8')
+    json_str = json.dumps(meta_clean, ensure_ascii=False, indent=2)
+    json_path.write_text(json_str, encoding='utf-8')
     print(f"[OK] JSON  -> {json_path}")
+
+    # 7b. Copia anche in public/gare-sorgenti/ (servito dal browser per gara.html)
+    public_json_dir = ARCHIVIO_DIR / "public" / "gare-sorgenti"
+    public_json_dir.mkdir(parents=True, exist_ok=True)
+    public_json_path = public_json_dir / f"{slug}.json"
+    public_json_path.write_text(json_str, encoding='utf-8')
+    print(f"[OK] JSON  -> {public_json_path}")
 
     print(f"\n[OK] Gara '{title}' aggiunta al database.")
     print("  Per pubblicare sul sito:")
@@ -650,7 +672,6 @@ def main():
         msg = (
             f'"{title}" aggiunta al database!\n\n'
             f'File creati:\n'
-            f'  public/gare/{slug}.html\n'
             f'  gare-sorgenti/{slug}.json\n\n'
             f'Per pubblicare sul sito:\n'
             f'  git add .\n'
