@@ -946,6 +946,40 @@
     "wt": false
   },
   {
+    "slug": "racconigi-2026-DJ-DU-DELI",
+    "titolo": "Racconigi",
+    "data": "2026-09-13",
+    "year": "2026",
+    "race_series": "racconigi",
+    "genere": "Femminile",
+    "categoria": [
+      "Elite",
+      "U23",
+      "Junior"
+    ],
+    "categoria_code": "DELI",
+    "tipo": null,
+    "n_tappe": null,
+    "wt": false
+  },
+  {
+    "slug": "racconigi-crono-2026-DJ-DU-DELI",
+    "titolo": "Racconigi Crono",
+    "data": "2026-09-12",
+    "year": "2026",
+    "race_series": "racconigi crono",
+    "genere": "Femminile",
+    "categoria": [
+      "Elite",
+      "U23",
+      "Junior"
+    ],
+    "categoria_code": "DELI",
+    "tipo": null,
+    "n_tappe": null,
+    "wt": false
+  },
+  {
     "slug": "reda-2026-MU",
     "titolo": "Reda",
     "data": "2026-04-05",

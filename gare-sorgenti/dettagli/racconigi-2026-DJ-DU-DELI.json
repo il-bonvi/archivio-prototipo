@@ -1,0 +1,20 @@
+{
+  "titolo": "Racconigi",
+  "race_series": "racconigi",
+  "data": "2026-09-13",
+  "genere": "Femminile",
+  "categoria": [
+    "Elite",
+    "U23",
+    "Junior"
+  ],
+  "disciplina": "Strada",
+  "giri": 1,
+  "velocita_media_kmh": 40.0,
+  "distanza_km": 109.01,
+  "dislivello_m": 357.0,
+  "_center_lat": 44.76708000000001,
+  "_center_lon": 7.675610000000001,
+  "slug": "racconigi-2026-DJ-DU-DELI",
+  "luogo": "Cuneo, IT"
+}
