@@ -354,6 +354,23 @@
     "wt": true
   },
   {
+    "slug": "giro-del-mediterraneo-rosa-2026-DJ-DU-DELI",
+    "titolo": "Giro del Mediterraneo Rosa",
+    "data": "2026-09-18",
+    "year": "2026",
+    "race_series": "giro del mediterraneo rosa",
+    "genere": "Femminile",
+    "categoria": [
+      "Elite",
+      "U23",
+      "Junior"
+    ],
+    "categoria_code": "DELI",
+    "tipo": "corsa_a_tappe",
+    "n_tappe": 3,
+    "wt": false
+  },
+  {
     "slug": "giro-del-porto-2026-MU-MELI",
     "titolo": "Giro del Porto",
     "data": "2026-05-17",

@@ -1,0 +1,22 @@
+{
+  "titolo": "Giro del Mediterraneo Rosa — Tappa 1: Tappa 1 - Crono",
+  "tipo": "tappa",
+  "nome_tappa": "Tappa 1 - Crono",
+  "numero_tappa": 1,
+  "corsa_a_tappe_slug": "giro-del-mediterraneo-rosa-2026-DJ-DU-DELI",
+  "corsa_a_tappe_titolo": "Giro del Mediterraneo Rosa",
+  "race_series": "giro del mediterraneo rosa",
+  "data": "2026-09-18",
+  "genere": "Femminile",
+  "categoria": [
+    "Elite",
+    "U23",
+    "Junior"
+  ],
+  "disciplina": "ITT",
+  "distanza_km": 1.69,
+  "dislivello_m": 6.0,
+  "velocita_media_kmh": 45.0,
+  "luogo": "Napoli, IT",
+  "slug": "giro-del-mediterraneo-rosa-S1-2026-DJ-DU-DELI"
+}

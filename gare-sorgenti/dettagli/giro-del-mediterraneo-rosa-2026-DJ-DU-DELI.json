@@ -1,0 +1,49 @@
+{
+  "titolo": "Giro del Mediterraneo Rosa",
+  "race_series": "giro del mediterraneo rosa",
+  "data": "2026-09-18",
+  "data_inizio": "2026-09-18",
+  "data_fine": "2026-09-20",
+  "genere": "Femminile",
+  "categoria": [
+    "Elite",
+    "U23",
+    "Junior"
+  ],
+  "luogo": "Napoli, IT",
+  "tipo": "corsa_a_tappe",
+  "n_tappe": 3,
+  "distanza_km": 175.42,
+  "dislivello_m": 1442,
+  "tappe": [
+    {
+      "numero": 1,
+      "nome": "Tappa 1 - Crono",
+      "slug": "giro-del-mediterraneo-rosa-S1-2026-DJ-DU-DELI",
+      "data": "2026-09-18",
+      "distanza_km": 1.69,
+      "dislivello_m": 6.0,
+      "disciplina": "ITT"
+    },
+    {
+      "numero": 2,
+      "nome": "Tappa 2",
+      "slug": "giro-del-mediterraneo-rosa-S2-2026-DJ-DU-DELI",
+      "data": "2026-09-19",
+      "distanza_km": 81.33,
+      "dislivello_m": 1136.0,
+      "disciplina": "Strada"
+    },
+    {
+      "numero": 3,
+      "nome": "Tappa 3",
+      "slug": "giro-del-mediterraneo-rosa-S3-2026-DJ-DU-DELI",
+      "data": "2026-09-20",
+      "distanza_km": 92.4,
+      "dislivello_m": 300.0,
+      "disciplina": "Strada",
+      "giri": 12
+    }
+  ],
+  "slug": "giro-del-mediterraneo-rosa-2026-DJ-DU-DELI"
+}

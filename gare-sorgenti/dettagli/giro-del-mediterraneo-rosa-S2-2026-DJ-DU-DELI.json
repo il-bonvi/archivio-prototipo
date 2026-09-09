@@ -1,0 +1,22 @@
+{
+  "titolo": "Giro del Mediterraneo Rosa — Tappa 2: Tappa 2",
+  "tipo": "tappa",
+  "nome_tappa": "Tappa 2",
+  "numero_tappa": 2,
+  "corsa_a_tappe_slug": "giro-del-mediterraneo-rosa-2026-DJ-DU-DELI",
+  "corsa_a_tappe_titolo": "Giro del Mediterraneo Rosa",
+  "race_series": "giro del mediterraneo rosa",
+  "data": "2026-09-19",
+  "genere": "Femminile",
+  "categoria": [
+    "Elite",
+    "U23",
+    "Junior"
+  ],
+  "disciplina": "Strada",
+  "distanza_km": 81.33,
+  "dislivello_m": 1136.0,
+  "velocita_media_kmh": 38.0,
+  "luogo": "Caserta, IT",
+  "slug": "giro-del-mediterraneo-rosa-S2-2026-DJ-DU-DELI"
+}

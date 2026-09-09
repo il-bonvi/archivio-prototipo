@@ -1,0 +1,22 @@
+{
+  "titolo": "Giro del Mediterraneo Rosa — Tappa 3: Tappa 3",
+  "tipo": "tappa",
+  "nome_tappa": "Tappa 3",
+  "numero_tappa": 3,
+  "corsa_a_tappe_slug": "giro-del-mediterraneo-rosa-2026-DJ-DU-DELI",
+  "corsa_a_tappe_titolo": "Giro del Mediterraneo Rosa",
+  "race_series": "giro del mediterraneo rosa",
+  "data": "2026-09-20",
+  "genere": "Femminile",
+  "categoria": [
+    "Elite",
+    "U23",
+    "Junior"
+  ],
+  "disciplina": "Strada",
+  "distanza_km": 92.4,
+  "dislivello_m": 300.0,
+  "velocita_media_kmh": 41.0,
+  "luogo": "Napoli, IT",
+  "slug": "giro-del-mediterraneo-rosa-S3-2026-DJ-DU-DELI"
+}
