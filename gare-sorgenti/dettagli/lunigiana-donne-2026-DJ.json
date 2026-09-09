@@ -11,8 +11,8 @@
   "luogo": "La Spezia, IT",
   "tipo": "corsa_a_tappe",
   "n_tappe": 2,
-  "distanza_km": 151.0,
-  "dislivello_m": 823,
+  "distanza_km": 148.54,
+  "dislivello_m": 817,
   "tappe": [
     {
       "numero": 1,
@@ -28,8 +28,8 @@
       "nome": "Tappa 2",
       "slug": "lunigiana-donne-S2-2026-DJ",
       "data": "2026-09-09",
-      "distanza_km": 81.6,
-      "dislivello_m": 619.0,
+      "distanza_km": 79.14,
+      "dislivello_m": 613.0,
       "disciplina": "Strada"
     }
   ],
